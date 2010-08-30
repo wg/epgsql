@@ -2,6 +2,7 @@
 --
 -- this script should be run as the same user the tests will be run as,
 -- so that the test for connecting as the 'current user' succeeds
+-- current user should have empty postgresql password
 --
 -- the following lines must be added to pg_hba.conf for all tests to
 -- succeed:
