@@ -405,6 +405,13 @@ date_time_type_test() ->
                          [{{0,0,0.0},0,-178000000 * 12}, {{0,0,0.0},0,178000000 * 12}])
       end).
 
+array_type_test() ->
+    with_connection(
+      fun(C) ->
+              {ok, [#column{type = int4array}], [{[1, 2, 3]}]} = pgsql:equery(C, "select array[1,2,3]")
+      end).
+
+
 misc_type_test() ->
     check_type(bool, "true", true, [true, false]),
     check_type(bytea, "E'\001\002'", <<1,2>>, [<<>>, <<0,128,255>>]).
