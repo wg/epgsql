@@ -30,6 +30,7 @@ release: app
 
 clean:
 	@rm -f ebin/*.beam
+	@rm -f test_ebin/*.beam
 	@rm -rf $(NAME)-$(VERSION) $(NAME)-*.tar.gz
 
 test: $(TEST_BEAMS) $(BEAMS)
