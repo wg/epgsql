@@ -528,7 +528,7 @@ decode_data([_C | T], <<-1:?int32, Rest/binary>>, Acc) ->
 decode_data([C | T], <<Len:?int32, Value:Len/binary, Rest/binary>>, Acc) ->
     case C of
         #column{type = Type, format = 1}   -> Value2 = pgsql_binary:decode(Type, Value);
-        #column{}                          -> Value2 = Value
+        #column{type = Type, format = 0}   -> Value2 = pgsql_text:decode(Type, Value)
     end,
     decode_data(T, Rest, [Value2 | Acc]).
 
