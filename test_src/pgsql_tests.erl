@@ -408,7 +408,7 @@ date_time_type_test() ->
 array_type_test() ->
     with_connection(
       fun(C) ->
-              {ok, [#column{type = int4array}], [{[1, 2, 3]}]} = pgsql:equery(C, "select array[1,2,3]")
+              {ok, [#column{type = int4array}], {[1, 2, 3]}} = pgsql:squery(C, "select array[1,2,3]")
       end).
 
 
