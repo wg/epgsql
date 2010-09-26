@@ -24,7 +24,7 @@ encode(Type, B) when Type == timestamptz; Type == interval -> ?datetime:encode(T
 encode(bytea, B) when is_binary(B)   -> <<(byte_size(B)):?int32, B/binary>>;
 encode(text, B) when is_binary(B)    -> <<(byte_size(B)):?int32, B/binary>>;
 encode(varchar, B) when is_binary(B) -> <<(byte_size(B)):?int32, B/binary>>;
-encode(Type, L) when is_list(L)      -> encode(Type, list_to_binary(L));
+encode(Type, L) when is_list(L), Type /= '_int4'           -> encode(Type, list_to_binary(L));
 encode(_Type, _Value)                -> {error, unsupported}.
 
 decode(bool, <<1:1/big-signed-unit:8>>)     -> true;

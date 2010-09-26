@@ -40,6 +40,9 @@ decode('_int4', Raw) ->
 decode(_Other, Value) ->
     Value.
 
+decode_int_array(<<"{}">>) ->
+    [];
+
 decode_int_array(<<${, Rest/binary>>) ->
     decode_int_array(Rest, [], []).
 
