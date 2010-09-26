@@ -406,11 +406,10 @@ date_time_type_test() ->
       end).
 
 array_type_test() ->
-    with_connection(
-      fun(C) ->
-              {ok, [#column{type = '_int4'}], [{[0, 512, -2147483648, +2147483647]}]} = pgsql:squery(C, "select array[0, 512, -2147483648, +2147483647]")
-      end).
-
+    check_type('_int4',
+               "'{0, 512, -2147483648, +2147483647}'",
+               [0, 512, -2147483648, +2147483647],
+               []).
 
 misc_type_test() ->
     check_type(bool, "true", true, [true, false]),
@@ -598,7 +597,7 @@ check_type(Type, In, Out, Values) ->
 check_type(Type, In, Out, Values, Column) ->
     with_connection(
       fun(C) ->
-              Select = io_lib:format("select ~s::~w", [In, Type]),
+              Select = io_lib:format("select ~s::~s", [In, Type]),
               {ok, [#column{type = Type}], [{Out}]} = pgsql:equery(C, Select),
               Sql = io_lib:format("insert into test_table2 (~s) values ($1) returning ~s", [Column, Column]),
               {ok, #statement{columns = [#column{type = Type}]} = S} = pgsql:parse(C, Sql),
