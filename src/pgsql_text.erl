@@ -13,14 +13,14 @@ decode(_Other, Value) ->
 int4_array(<<${, Rest/binary>>) ->
     int4_array(Rest, [], []).
 
-int4_array(<<$,, Rest/binary>>, Field, Accumulator) ->
-    int4_array(Rest, [], [field_to_integer(Field) | Accumulator]);
+int4_array(<<$,, Rest/binary>>, Element, Accumulator) ->
+    int4_array(Rest, [], [field_to_integer(Element) | Accumulator]);
 
-int4_array(<<$}>>, Field, Accumulator) ->
-    lists:reverse([field_to_integer(Field) | Accumulator]);
+int4_array(<<$}>>, Element, Accumulator) ->
+    lists:reverse([field_to_integer(Element) | Accumulator]);
     
-int4_array(<<Char, Rest/binary>>, Field, Accumulator) ->
-    int4_array(Rest, [Char | Field], Accumulator).
+int4_array(<<Char, Rest/binary>>, Element, Accumulator) ->
+    int4_array(Rest, [Char | Element], Accumulator).
 
-field_to_integer(Field) ->
-    list_to_integer(lists:reverse(Field)).
+element_to_int4(Element) ->
+    list_to_integer(lists:reverse(Element)).
