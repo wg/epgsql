@@ -17,6 +17,7 @@
 -export([executing/2, closing/2, synchronizing/2, timeout/2]).
 
 -include("pgsql.hrl").
+-include("pgsql_protocol.hrl").
 
 -record(state, {
           reader,
@@ -29,9 +30,6 @@
           backend,
           statement,
           txstatus}).
-
--define(int16, 1/big-signed-unit:16).
--define(int32, 1/big-signed-unit:32).
 
 %% -- client interface --
 
@@ -614,17 +612,11 @@ encode_parameters([P | T], Count, Formats, Values) ->
 encode_parameter({Type, Value}) ->
     case pgsql_binary:encode(Type, Value) of
         Bin when is_binary(Bin) -> {1, Bin};
-        {error, unsupported}    -> encode_parameter(Value)
+        {error, unsupported}    -> {0, pgsql_text:encode(Type, Value)}
     end;
-encode_parameter(A) when is_atom(A)    -> {0, encode_list(atom_to_list(A))};
-encode_parameter(B) when is_binary(B)  -> {0, <<(byte_size(B)):?int32, B/binary>>};
-encode_parameter(I) when is_integer(I) -> {0, encode_list(integer_to_list(I))};
-encode_parameter(F) when is_float(F)   -> {0, encode_list(float_to_list(F))};
-encode_parameter(L) when is_list(L)    -> {0, encode_list(L)}.
 
-encode_list(L) ->
-    Bin = list_to_binary(L),
-    <<(byte_size(Bin)):?int32, Bin/binary>>.
+encode_parameter(Value) ->
+    {0, pgsql_text:encode(Value)}.
 
 notify(#state{reply_to = {Pid, _Tag}}, Msg) ->
     Pid ! {pgsql, self(), Msg}.
