@@ -55,7 +55,8 @@ CREATE TABLE test_table2 (
   c_timetz timetz,
   c_timestamp timestamp,
   c_timestamptz timestamptz,
-  c_interval interval);
+  c_interval interval,
+  c_int4_array int4[]);
 
 CREATE LANGUAGE plpgsql;
 

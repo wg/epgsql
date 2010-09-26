@@ -409,7 +409,8 @@ array_type_test() ->
     check_type('_int4',
                "'{0, 512, -2147483648, +2147483647}'",
                [0, 512, -2147483648, +2147483647],
-               []).
+               [[], [1, -1, 0]],
+              "c_int4_array").
 
 misc_type_test() ->
     check_type(bool, "true", true, [true, false]),
