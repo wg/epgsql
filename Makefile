@@ -6,7 +6,7 @@ ERLC 		:= erlc
 
 # ------------------------------------------------------------------------
 
-ERLC_FLAGS	:= -Wall -I include
+ERLC_FLAGS	:= -Wall -I include +debug_info
 
 SRC			:= $(wildcard src/*.erl)
 TESTS 		:= $(wildcard test_src/*.erl)
