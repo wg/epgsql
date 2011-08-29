@@ -6,7 +6,7 @@ ERLC 		:= erlc
 
 # ------------------------------------------------------------------------
 
-ERLC_FLAGS	:= -Wall -I include
+ERLC_FLAGS	:= -Wall -I include +debug_info
 
 SRC			:= $(wildcard src/*.erl)
 TESTS 		:= $(wildcard test_src/*.erl)
@@ -26,7 +26,8 @@ release: app
 	@tar czvf $(RELEASE) $(APPDIR)
 
 clean:
-	@rm -f ebin/*.{beam,app}
+	@rm -f ebin/*.beam
+	@rm -f ebin/*.app
 	@rm -rf $(NAME)-$(VERSION) $(NAME)-*.tar.gz
 
 test: $(TESTS:test_src/%.erl=test_ebin/%.beam) compile
