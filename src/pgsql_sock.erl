@@ -136,42 +136,44 @@ setopts(#state{mod = Mod, sock = Sock}, Opts) ->
 
 decode(<<Type:8, Len:?int32, Rest/binary>> = Bin, #state{c = C} = State) ->
     Len2 = Len - 4,
-    case Rest of
-        <<Data:Len2/binary, Tail/binary>> when Type == $N ->
-            gen_fsm:send_all_state_event(C, {notice, decode_error(Data)}),
-            decode(Tail, State);
-        <<Data:Len2/binary, Tail/binary>> when Type == $S ->
-            [Name, Value] = decode_strings(Data),
-            gen_fsm:send_all_state_event(C, {parameter_status, Name, Value}),
-            decode(Tail, State);
-        <<Data:Len2/binary, Tail/binary>> when Type == $E ->
-            gen_fsm:send_event(C, {error, decode_error(Data)}),
-            decode(Tail, State);
-        <<Data:Len2/binary, Tail/binary>> when Type == $A ->
-            <<Pid:?int32, Strings/binary>> = Data,
-            case decode_strings(Strings) of
-                [Channel, Payload] -> ok;
-                [Channel]          -> Payload = <<>>
-            end,
-            gen_fsm:send_all_state_event(C, {notification, Channel, Pid, Payload}),
-            decode(Tail, State);
-        <<Data:Len2/binary, Tail/binary>> ->
-            gen_fsm:send_event(C, {Type, Data}),
-            decode(Tail, State);
-        _Other ->
-            State#state{tail = Bin}
+    <<Data:Len2/binary, Tail/binary>> = Rest,
+    case Type of
+        $N ->
+           gen_fsm:send_all_state_event(C, {notice, decode_error(Data)}),
+           decode(Tail, State);
+        $S ->
+           [Name, Value] = decode_strings(Data),
+           gen_fsm:send_all_state_event(C, {parameter_status, Name, Value}),
+           decode(Tail, State);
+        $E ->
+           gen_fsm:send_event(C, {error, decode_error(Data)}),
+           decode(Tail, State);
+        $A ->
+           <<Pid:?int32, Strings/binary>> = Data,
+           case decode_strings(Strings) of
+               [Channel, Payload] -> ok;
+               [Channel]          -> Payload = <<>>
+           end,
+           gen_fsm:send_all_state_event(C, {notification, Channel, Pid, Payload}),
+           decode(Tail, State);
+        _ ->
+           gen_fsm:send_event(C, {Type, Data}),
+           decode(Tail, State)
     end;
 decode(Bin, State) ->
     State#state{tail = Bin}.
 
 %% decode a single null-terminated string
 decode_string(Bin) ->
-    decode_string(Bin, <<>>).
+    Idx = first_index(Bin, 0),
+    <<H:Idx/binary, _, T/binary>> = Bin,
+    {H, T}.
 
-decode_string(<<0, Rest/binary>>, Str) ->
-    {Str, Rest};
-decode_string(<<C, Rest/binary>>, Str) ->
-    decode_string(Rest, <<Str/binary, C>>).
+first_index(<<X, T/binary>>, Idx) ->
+    case X of
+    0 -> Idx;
+    _ -> first_index(T, Idx+1)
+    end.
 
 %% decode multiple null-terminated string
 decode_strings(Bin) ->
