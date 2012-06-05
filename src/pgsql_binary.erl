@@ -4,6 +4,10 @@
 
 -export([encode/2, decode/2, supports/1]).
 
+-type cidr() :: {inet:ip_address(), integer()}.
+
+-export_type([cidr/0]).
+
 -define(int32, 1/big-signed-unit:32).
 -define(datetime, (get(datetime_mod))).
 
@@ -26,6 +30,8 @@ encode(interval = Type, B)                  -> ?datetime:encode(Type, B);
 encode(bytea, B) when is_binary(B)          -> <<(byte_size(B)):?int32, B/binary>>;
 encode(text, B) when is_binary(B)           -> <<(byte_size(B)):?int32, B/binary>>;
 encode(varchar, B) when is_binary(B)        -> <<(byte_size(B)):?int32, B/binary>>;
+encode(inet, B)                             -> encode_net(B);
+encode(cidr, B)                             -> encode_net(B);
 encode(boolarray, L) when is_list(L)        -> encode_array(bool, L);
 encode(int2array, L) when is_list(L)        -> encode_array(int2, L);
 encode(int4array, L) when is_list(L)        -> encode_array(int4, L);
@@ -60,6 +66,8 @@ decode(float4array, B)                      -> decode_array(B);
 decode(float8array, B)                      -> decode_array(B);
 decode(chararray, B)                        -> decode_array(B);
 decode(textarray, B)                        -> decode_array(B);
+decode(inet, B)                             -> decode_net(B);
+decode(cidr, B)                             -> decode_net(B);
 decode(_Other, Bin)                         -> Bin.
 
 encode_array(Type, A) ->
@@ -96,6 +104,40 @@ decode_array(Data, Type, [Len]) ->
 decode_array(Data, Type, [Len | T]) ->
     F = fun(_N, Rest) -> decode_array(Rest, Type, T) end,
     lists:mapfoldl(F, Data, lists:seq(1, Len)).
+
+encode_net({{_, _, _, _} = Ip, Mask}) ->
+    B = list_to_binary(tuple_to_list(Ip)),
+    <<2, Mask, 1, (byte_size(B)), B/binary>>;
+encode_net({{_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _} = Ip, Mask}) ->
+    B = list_to_binary(tuple_to_list(Ip)),
+    <<3, Mask, 1, (byte_size(B)), B/binary>>;
+encode_net({_, _, _, _} = Ip) ->
+    B = list_to_binary(tuple_to_list(Ip)),
+    <<2, 32, 0, (byte_size(B)), B/binary>>;
+encode_net({_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _} = Ip) ->
+    B = list_to_binary(tuple_to_list(Ip)),
+    <<3, 128, 0, (byte_size(B)), B/binary>>.
+
+decode_net(<<Family, Mask, IsCidr, Size, Bin/binary>>) ->
+    {MaxMask, ProperSize} = case Family of
+                                2 -> %% AF_INET
+                                    {32, 4};
+                                3 -> %% AF_INET6
+                                    {128, 16}
+                            end,
+    IpTuple = list_to_tuple(binary_to_list(Bin)),
+    case Size =:= ProperSize orelse Mask > MaxMask of
+        false ->
+            io:format("Ivalid value for inet type received"),
+            {};
+        true ->
+            case IsCidr =:= 1 of
+                true ->
+                    {IpTuple, Mask};
+                false ->
+                    IpTuple
+            end
+    end.
 
 decode_elements(Rest, _Type, Acc, 0) ->
     {lists:reverse(Acc), Rest};
@@ -138,4 +180,6 @@ supports(float4array) -> true;
 supports(float8array) -> true;
 supports(chararray)   -> true;
 supports(textarray)   -> true;
+supports(inet)        -> true;
+supports(cidr)        -> true;
 supports(_Type)       -> false.
