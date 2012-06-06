@@ -15,7 +15,7 @@
 -export([startup/3, auth/2, initializing/2, ready/2, ready/3]).
 -export([querying/2, parsing/2, binding/2, describing/2]).
 -export([executing/2, closing/2, synchronizing/2, timeout/2]).
--export([aborted/3]).
+-export([aborted/2, aborted/3]).
 
 -include("pgsql.hrl").
 
@@ -515,6 +515,10 @@ timeout(timeout, State) ->
 timeout(_Event, State) ->
     #state{timeout = Timeout} = State,
     {next_state, timeout, State, Timeout}.
+
+aborted(timeout, State) ->
+    #state{timeout = Timeout} = State,
+    {reply, {error, sync_required}, aborted, State, Timeout}.
 
 aborted(sync, From, State) ->
     #state{timeout = Timeout} = State,
