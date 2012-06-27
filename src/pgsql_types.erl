@@ -170,4 +170,4 @@ type2oid(opaque)                -> 2282;
 type2oid(anyelement)            -> 2283;
 type2oid(anynonarray)           -> 2776;
 type2oid(anyenum)               -> 3500;
-type2oid(Type)                  -> {unknown_type, Type}.
+type2oid(Type)                  -> error({unknown_type, Type}).
