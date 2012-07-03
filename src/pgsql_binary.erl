@@ -23,6 +23,7 @@ encode(float4, N)                           -> <<4:?int32, N:1/big-float-unit:32
 encode(float8, N)                           -> <<8:?int32, N:1/big-float-unit:64>>;
 encode(bpchar, C) when is_integer(C)        -> <<1:?int32, C:1/big-unsigned-unit:8>>;
 encode(bpchar, B) when is_binary(B)         -> <<(byte_size(B)):?int32, B/binary>>;
+encode(character, X)                        -> encode(bpchar, X);
 encode(time = Type, B)                      -> ?datetime:encode(Type, B);
 encode(timetz = Type, B)                    -> ?datetime:encode(Type, B);
 encode(date = Type, B)                      -> ?datetime:encode(Type, B);
@@ -49,6 +50,7 @@ encode(_Type, _Value)                       -> {error, unsupported}.
 decode(bool, <<1:1/big-signed-unit:8>>)     -> true;
 decode(bool, <<0:1/big-signed-unit:8>>)     -> false;
 decode(bpchar, <<C:1/big-unsigned-unit:8>>) -> C;
+decode(character, X)                        -> decode(bpchar, X);
 decode(int2, <<N:1/big-signed-unit:16>>)    -> N;
 decode(int4, <<N:1/big-signed-unit:32>>)    -> N;
 decode(integer, <<N:1/big-signed-unit:32>>) -> N;
@@ -163,6 +165,7 @@ decode_record(<<Type:?int32, Len:?int32, Value:Len/binary, Rest/binary>>, Acc) -
 
 supports(bool)    -> true;
 supports(bpchar)  -> true;
+supports(character)-> true;
 supports(int2)    -> true;
 supports(int4)    -> true;
 supports(int8)    -> true;

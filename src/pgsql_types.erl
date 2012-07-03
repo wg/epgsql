@@ -138,6 +138,7 @@ type2oid(float4array)           -> 1021;
 type2oid(float8array)           -> 1022;
 type2oid(aclitem)               -> 1033;
 type2oid(cstringarray)          -> 1263;
+type2oid(character)             -> 1042;
 type2oid(bpchar)                -> 1042;
 type2oid(varchar)               -> 1043;
 type2oid(date)                  -> 1082;
