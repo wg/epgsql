@@ -188,6 +188,7 @@ supports(int8array)   -> true;
 supports(float4array) -> true;
 supports(float8array) -> true;
 supports(chararray)   -> true;
+supports(varchararray) -> true;
 supports(textarray)   -> true;
 supports(inet)        -> true;
 supports(cidr)        -> true;
