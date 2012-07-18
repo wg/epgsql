@@ -14,6 +14,8 @@
 encode(_Any, null)                          -> <<-1:?int32>>;
 encode(bool, true)                          -> <<1:?int32, 1:1/big-signed-unit:8>>;
 encode(bool, false)                         -> <<1:?int32, 0:1/big-signed-unit:8>>;
+encode(boolean, true)                       -> <<1:?int32, 1:1/big-signed-unit:8>>;
+encode(boolean, false)                      -> <<1:?int32, 0:1/big-signed-unit:8>>;
 encode(int2, N)                             -> <<2:?int32, N:1/big-signed-unit:16>>;
 encode(int4, N)                             -> <<4:?int32, N:1/big-signed-unit:32>>;
 encode(integer, N)                          -> <<4:?int32, N:1/big-signed-unit:32>>;
@@ -49,6 +51,8 @@ encode(_Type, _Value)                       -> {error, unsupported}.
 
 decode(bool, <<1:1/big-signed-unit:8>>)     -> true;
 decode(bool, <<0:1/big-signed-unit:8>>)     -> false;
+decode(boolean, <<1:1/big-signed-unit:8>>)  -> true;
+decode(boolean, <<0:1/big-signed-unit:8>>)  -> false;
 decode(bpchar, <<C:1/big-unsigned-unit:8>>) -> C;
 decode(character, X)                        -> decode(bpchar, X);
 decode(int2, <<N:1/big-signed-unit:16>>)    -> N;
@@ -164,6 +168,7 @@ decode_record(<<Type:?int32, Len:?int32, Value:Len/binary, Rest/binary>>, Acc) -
     decode_record(Rest, [Value2 | Acc]).
 
 supports(bool)         -> true;
+supports(boolean)      -> true;
 supports(bpchar)       -> true;
 supports(character)    -> true;
 supports(int2)         -> true;

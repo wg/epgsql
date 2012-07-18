@@ -3,6 +3,7 @@
 -export([oid2type/1, type2oid/1]).
 
 oid2type(16)   -> bool;
+oid2type(16)   -> boolean;
 oid2type(17)   -> bytea;
 oid2type(18)   -> char;
 oid2type(19)   -> name;
@@ -89,6 +90,7 @@ oid2type(3500) -> anyenum;
 oid2type(Oid)  -> error({unknown_oid, Oid}).
 
 type2oid(bool)                  -> 16;
+type2oid(boolean)               -> 16;
 type2oid(bytea)                 -> 17;
 type2oid(char)                  -> 18;
 type2oid(name)                  -> 19;
