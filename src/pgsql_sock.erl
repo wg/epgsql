@@ -41,9 +41,10 @@ init([C, Host, Username, Opts]) ->
     process_flag(trap_exit, true),
 
     Opts2 = ["user", 0, Username, 0],
+    Opts3 = 
     case proplists:get_value(database, Opts, undefined) of
-        undefined -> Opts3 = Opts2;
-        Database  -> Opts3 = [Opts2 | ["database", 0, Database, 0]]
+        undefined -> Opts2;
+        Database  -> [Opts2 | ["database", 0, Database, 0]]
     end,
 
     Port = proplists:get_value(port, Opts, 5432),
@@ -56,13 +57,14 @@ init([C, Host, Username, Opts]) ->
       sock = S,
       tail = <<>>},
 
+    State2 = 
     case proplists:get_value(ssl, Opts) of
         T when T == true; T == required ->
             ok = gen_tcp:send(S, <<8:?int32, 80877103:?int32>>),
             {ok, <<Code>>} = gen_tcp:recv(S, 1),
-            State2 = start_ssl(Code, T, Opts, State);
+            start_ssl(Code, T, Opts, State);
         _ ->
-            State2 = State
+            State
     end,
 
     setopts(State2, [{active, true}]),
@@ -134,7 +136,7 @@ setopts(#state{mod = Mod, sock = Sock}, Opts) ->
         ssl     -> ssl:setopts(Sock, Opts)
     end.
 
-decode(<<Type:8, Len:?int32, Rest/binary>> = Bin, #state{c = C} = State) ->
+decode(<<Type:8, Len:?int32, Rest/binary>>, #state{c = C} = State) ->
     Len2 = Len - 4,
     <<Data:Len2/binary, Tail/binary>> = Rest,
     case Type of
@@ -150,9 +152,10 @@ decode(<<Type:8, Len:?int32, Rest/binary>> = Bin, #state{c = C} = State) ->
            decode(Tail, State);
         $A ->
            <<Pid:?int32, Strings/binary>> = Data,
+           [Channel, Payload] = 
            case decode_strings(Strings) of
-               [Channel, Payload] -> ok;
-               [Channel]          -> Payload = <<>>
+               [Chan]          -> [Chan, <<>>];
+               ChanWithPayload -> ChanWithPayload
            end,
            gen_fsm:send_all_state_event(C, {notification, Channel, Pid, Payload}),
            decode(Tail, State);
@@ -163,37 +166,28 @@ decode(<<Type:8, Len:?int32, Rest/binary>> = Bin, #state{c = C} = State) ->
 decode(Bin, State) ->
     State#state{tail = Bin}.
 
+
 %% decode a single null-terminated string
 decode_string(Bin) ->
-    Idx = first_index(Bin, 0),
-    <<H:Idx/binary, _, T/binary>> = Bin,
+    [H, T] = binary:split(Bin, <<0>>),
     {H, T}.
 
-first_index(<<X, T/binary>>, Idx) ->
-    case X of
-    0 -> Idx;
-    _ -> first_index(T, Idx+1)
-    end.
-
 %% decode multiple null-terminated string
-decode_strings(Bin) ->
-    decode_strings(Bin, []).
+decode_strings(<<>>) ->                              
+        [];                                                  
+decode_strings(Bin) ->                               
+        binary:split(trim_last_zero(Bin), <<0>>, [global]).  
+                                                         
+trim_last_zero(Bin) ->                                   
+        binary:part(Bin, 0, byte_size(Bin)-1).               
 
-decode_strings(<<>>, Acc) ->
-    lists:reverse(Acc);
-decode_strings(Bin, Acc) ->
-    {Str, Rest} = decode_string(Bin),
-    decode_strings(Rest, [Str | Acc]).
 
 %% decode field
+%% Works, when Type =/= 0 only.
 decode_fields(Bin) ->
-    decode_fields(Bin, []).
+    RawFields = binary:split(Bin, <<0>>, [global, trim]),
+    [{Type, Str} || <<Type, Str/binary>> <- RawFields].
 
-decode_fields(<<0>>, Acc) ->
-    Acc;
-decode_fields(<<Type:8, Rest/binary>>, Acc) ->
-    {Str, Rest2} = decode_string(Rest),
-    decode_fields(Rest2, [{Type, Str} | Acc]).
 
 %% decode ErrorResponse
 decode_error(Bin) ->
