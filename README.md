@@ -1,0 +1,164 @@
+Erlang PostgreSQL Database Client
+=================================
+
+Connect
+-------
+
+    {ok, C} = pgsql:connect(Host, [Username], [Password], Opts).
+
+ * _Host_     - host to connect to.
+ * _Username_ - username to connect as, defaults to $USER.
+ * _Password_ - optional password to authenticate with.
+ * _Opts_     - property list of extra options. Supported properties:
+
+   * `{database, string()}`
+   * `{port, integer()}`
+   * `{ssl, true | false | required}`
+   * `{ssl_opts, list()}` - see ssl application docs in OTP
+   * `{timeout, integer()}` - milliseconds, defaults to 5000
+   * `{async, pid()}` - see Asynchronous Messages section
+
+Example:
+
+    {ok, C} = pgsql:connect("localhost", "username", [{database, "test_db"}]).
+    ok = pgsql:close(C).
+
+The timeout parameter will trigger an `{error, timeout}` result when the server
+fails to respond within specified milliseconds. This timeout applies to the
+initial connection attempt and any subsequent queries.
+
+Simple Query
+------------
+
+    {ok, Columns, Rows}        = pgsql:squery(C, "select ...").
+    {ok, Count}                = pgsql:squery(C, "update ...").
+    {ok, Count, Columns, Rows} = pgsql:squery(C, "insert ... returning ...").
+
+    {error, Error}             = pgsql:squery(C, "invalid SQL").
+
+ * _Columns_ - list of column records, see pgsql.hrl for definition.
+ * _Rows_    - list of tuples, one for each row.
+ * _Count_   - integer count of rows inserted/updated/etc
+
+The simple query protocol returns all columns as text (Erlang binaries) and does
+not support binding parameters.
+
+Extended Query
+--------------
+
+    {ok, Columns, Rows}        = pgsql:equery(C, "select ...", [Parameters]).
+    {ok, Count}                = pgsql:equery(C, "update ...", [Parameters]).
+    {ok, Count, Columns, Rows} = pgsql:equery(C, "insert ... returning ...", [Parameters]).
+
+    {error, Error}             = pgsql:equery(C, "invalid SQL", [Parameters]).
+
+ * _Parameters_ - optional list of values to be bound to $1, $2, $3, etc.
+
+The extended query protocol combines parse, bind, and execute using the unnamed
+prepared statement and portal. A "select" statement returns `{ok, Columns,
+Rows}`, "insert/update/delete" returns `{ok, Count}` or `{ok, Count, Columns,
+Rows}` when a "returning" clause is present. When an error occurs, all statements
+result in `{error, #error{}}`.
+
+PostgreSQL's binary format is used to return integers as Erlang integers, floats
+as floats, bytea/text/varchar columns as binaries, bools as true/false, etc. For
+details see `pgsql_binary.erl` and the Data Representation section below.
+
+Parse/Bind/Execute
+------------------
+
+### Parse
+
+    {ok, Statement} = pgsql:parse(C, [StatementName], Sql, [ParameterTypes]).
+
+ * _StatementName_  - optional, reusable, name for the prepared statement.
+ * _ParameterTypes_ - optional list of PostgreSQL types for each parameter.
+
+For valid type names see `pgsql_types.erl`.
+
+### Bind
+
+    ok = pgsql:bind(C, Statement, [PortalName], ParameterValues).
+
+ * _PortalName_ - optional name for the result portal.
+
+### Execute
+
+    {ok | partial, Rows} = pgsql:execute(C, Statement, [PortalName], [MaxRows]).
+    {ok, Count}          = pgsql:execute(C, Statement, [PortalName]).
+    {ok, Count, Rows}    = pgsql:execute(C, Statement, [PortalName]).
+
+ * _PortalName_ - optional portal name used in `bind/4`.
+ * _MaxRows_    - maximum number of rows to return (0 for all rows).
+
+Execute returns `{partial, Rows}` when more rows are available.
+
+### Close
+
+    ok = pgsql:close(C, Statement).
+    ok = pgsql:close(C, statement | portal, Name).
+    ok = pgsql:sync(C).
+
+All functions return `{error, Error}` when an error occurs.
+
+Data Representation
+-------------------
+
+ * null        = null
+ * bool        = true | false
+ * char        = $A | binary
+ * intX        = 1
+ * floatX      = 1.0
+ * date        = {Year, Month, Day}
+ * time        = {Hour, Minute, Second.Microsecond}
+ * timetz      = {time, Timezone}
+ * timestamp   = {date, time}
+ * timestamptz = {date, time}
+ * interval    = {time, Days, Months}
+ * text        = <<"a">>
+ * varchar     = <<"a">>
+ * bytea       = <<1, 2>>
+ * array       = [1, 2, 3]
+
+ * record      = {int2, time, text, ...} (decode only)
+
+Errors
+------
+
+Errors originating from the PostgreSQL backend are returned as `{error, #error{}}`,
+see `pgsql.hrl` for the record definition. epgsql functions may also return
+`{error, What}` where What is one of the following:
+
+ * `{unsupported_auth_method, Method}` - required auth method is unsupported
+ * `timeout`                           - request timed out
+ * `closed`                            - connection was closed
+ * `sync_required`                     - error occured and pgsql:sync must be called
+
+Asynchronous Messages
+---------------------
+
+PostgreSQL may deliver two types of asynchronous message: "notices" in response
+to notice and warning messages generated by the server, and "notifications"
+which are generated by the LISTEN/NOTIFY mechanism.
+
+Passing the `{async, Pid}` option to `pgsql:connect` will result in these async
+messages being sent to the specified process, otherwise they will be dropped.
+
+### Message formats
+
+Notification:
+
+    {pgsql, Connection, {notification, Channel, Pid, Payload}}
+
+ * _Connection_ - connection the notification occured on
+ * _Channel_    - channel the notification occured on
+ * _Pid_        - database session pid that sent notification
+ * _Payload_    - optional payload, only available from PostgreSQL >= 9.0
+
+Notice:
+
+    {pgsql, Connection, {notice, Error}}
+
+ * _Connection_ - connection the notice occured on
+ * _Error_      - an `#error{}` record, see `pgsql.hrl`
+
