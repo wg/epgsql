@@ -23,6 +23,7 @@ encode(int8, N)                             -> <<8:?int32, N:1/big-signed-unit:6
 encode(bigint, N)                           -> <<8:?int32, N:1/big-signed-unit:64>>;
 encode(float4, N)                           -> <<4:?int32, N:1/big-float-unit:32>>;
 encode(float8, N)                           -> <<8:?int32, N:1/big-float-unit:64>>;
+encode(point, {X, Y})                       -> <<16:?int32, X:1/big-float-unit:64, Y:1/big-float-unit:64>>;
 encode(bpchar, C) when is_integer(C)        -> <<1:?int32, C:1/big-unsigned-unit:8>>;
 encode(bpchar, B) when is_binary(B)         -> <<(byte_size(B)):?int32, B/binary>>;
 encode(character, X)                        -> encode(bpchar, X);
@@ -62,6 +63,8 @@ decode(int8, <<N:1/big-signed-unit:64>>)    -> N;
 decode(bigint, <<N:1/big-signed-unit:64>>)  -> N;
 decode(float4, <<N:1/big-float-unit:32>>)   -> N;
 decode(float8, <<N:1/big-float-unit:64>>)   -> N;
+decode(point, <<X:1/big-float-unit:64,
+                Y:1/big-float-unit:64>>)    -> {X, Y};
 decode(record, <<_:?int32, Rest/binary>>)   -> list_to_tuple(decode_record(Rest, []));
 decode(time = Type, B)                      -> ?datetime:decode(Type, B);
 decode(timetz = Type, B)                    -> ?datetime:decode(Type, B);
@@ -197,4 +200,5 @@ supports(varchararray) -> true;
 supports(textarray)    -> true;
 supports(inet)         -> true;
 supports(cidr)         -> true;
+supports(point)         -> true;
 supports(_Type)        -> false.
