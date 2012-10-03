@@ -2,7 +2,6 @@
 
 -export([oid2type/1, type2oid/1]).
 
-oid2type(16)   -> bool;
 oid2type(16)   -> boolean;
 oid2type(17)   -> bytea;
 oid2type(18)   -> char;
@@ -51,6 +50,7 @@ oid2type(1021) -> float4array;
 oid2type(1022) -> float8array;
 oid2type(1033) -> aclitem;
 oid2type(1263) -> cstringarray;
+oid2type(1041) -> inetarray;
 oid2type(1042) -> bpchar;
 oid2type(1043) -> varchar;
 oid2type(1082) -> date;
@@ -140,6 +140,7 @@ type2oid(float4array)           -> 1021;
 type2oid(float8array)           -> 1022;
 type2oid(aclitem)               -> 1033;
 type2oid(cstringarray)          -> 1263;
+type2oid(inetarray)             -> 1041;
 type2oid(character)             -> 1042;
 type2oid(bpchar)                -> 1042;
 type2oid(varchar)               -> 1043;

@@ -81,6 +81,7 @@ decode(float8array, B)                      -> decode_array(B);
 decode(chararray, B)                        -> decode_array(B);
 decode(varchararray, B)                     -> decode_array(B);
 decode(textarray, B)                        -> decode_array(B);
+decode(inetarray, B)                        -> decode_array(B);
 decode(inet, B)                             -> decode_net(B);
 decode(cidr, B)                             -> decode_net(B);
 decode(_Other, Bin)                         -> Bin.
