@@ -47,6 +47,7 @@ encode(float8array, L) when is_list(L)      -> encode_array(float8, L);
 encode(chararray, L) when is_list(L)        -> encode_array(bpchar, L);
 encode(varchararray, L) when is_list(L)     -> encode_array(varchar, L);
 encode(textarray, L) when is_list(L)        -> encode_array(text, L);
+encode(recordarray, L) when is_list(L)      -> encode_array(record, L);
 encode(Type, L) when is_list(L)             -> encode(Type, list_to_binary(L));
 encode(_Type, _Value)                       -> {error, unsupported}.
 
@@ -82,6 +83,7 @@ decode(chararray, B)                        -> decode_array(B);
 decode(varchararray, B)                     -> decode_array(B);
 decode(textarray, B)                        -> decode_array(B);
 decode(inetarray, B)                        -> decode_array(B);
+decode(recordarray, B)                      -> decode_array(B);
 decode(inet, B)                             -> decode_net(B);
 decode(cidr, B)                             -> decode_net(B);
 decode(_Other, Bin)                         -> Bin.
@@ -199,7 +201,8 @@ supports(float8array)  -> true;
 supports(chararray)    -> true;
 supports(varchararray) -> true;
 supports(textarray)    -> true;
+supports(recordarray)  -> true;
 supports(inet)         -> true;
 supports(cidr)         -> true;
-supports(point)         -> true;
+supports(point)        -> true;
 supports(_Type)        -> false.
