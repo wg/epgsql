@@ -39,6 +39,7 @@ encode(varchar, B) when is_binary(B)        -> <<(byte_size(B)):?int32, B/binary
 encode(inet, B)                             -> encode(bytea, encode_net(B));
 encode(cidr, B)                             -> encode(bytea, encode_net(B));
 encode(boolarray, L) when is_list(L)        -> encode_array(bool, L);
+encode(inetarray, L) when is_list(L)        -> encode_array(inet, L);
 encode(int2array, L) when is_list(L)        -> encode_array(int2, L);
 encode(int4array, L) when is_list(L)        -> encode_array(int4, L);
 encode(int8array, L) when is_list(L)        -> encode_array(int8, L);
