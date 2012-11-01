@@ -1,49 +1,16 @@
-NAME		:= epgsql
-VERSION		:= $(shell git describe --always --tags)
+.PHONY: compile test dialyzer clean
 
-ERL  		:= erl
-ERLC 		:= erlc
+compile:
+	@./rebar compile
 
-# ------------------------------------------------------------------------
+test:
+	@./rebar skip_deps=true eunit
 
-ERLC_FLAGS	:= -Wall -I include +debug_info
+dialyzer: build.plt compile
+	dialyzer --plt $< ebin
 
-SRC			:= $(wildcard src/*.erl)
-TESTS 		:= $(wildcard test_src/*.erl)
-RELEASE		:= $(NAME)-$(VERSION).tar.gz
-
-APPDIR		:= $(NAME)-$(VERSION)
-BEAMS		:= $(SRC:src/%.erl=ebin/%.beam) 
-
-compile: $(BEAMS) ebin/$(NAME).app
-
-app: compile
-	@mkdir -p $(APPDIR)/ebin
-	@cp -r ebin/* $(APPDIR)/ebin/
-	@cp -r include $(APPDIR)
-
-release: app
-	@tar czvf $(RELEASE) $(APPDIR)
+build.plt:
+	dialyzer -q --build_plt --apps kernel stdlib ssl --output_plt $@
 
 clean:
-	@rm -f ebin/*.beam
-	@rm -f ebin/$(NAME).app
-	@rm -rf $(NAME)-$(VERSION) $(NAME)-*.tar.gz
-
-test: $(TESTS:test_src/%.erl=test_ebin/%.beam) compile
-	@dialyzer -n --src -c src
-	$(ERL) -pa ebin/ -pa test_ebin/ -noshell -s pgsql_tests run_tests -s init stop
-
-# ------------------------------------------------------------------------
-
-.SUFFIXES: .erl .beam
-.PHONY:    app compile clean test
-
-ebin/%.beam : src/%.erl
-	$(ERLC) $(ERLC_FLAGS) -o $(dir $@) $<
-
-ebin/%.app : src/%.app.src Makefile
-	sed -e s/git/\"$(VERSION)\"/g $< > $@
-
-test_ebin/%.beam : test_src/%.erl
-	$(ERLC) $(ERLC_FLAGS) -o $(dir $@) $<
+	@./rebar clean

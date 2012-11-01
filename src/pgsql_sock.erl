@@ -38,15 +38,15 @@ cancel(S, Pid, Key) ->
 %% -- gen_server implementation --
 
 init([C, Host, Username, Opts]) ->
-    process_flag(trap_exit, true),
-
     Opts2 = ["user", 0, Username, 0],
-    case proplists:get_value(database, Opts, undefined) of
-        undefined -> Opts3 = Opts2;
-        Database  -> Opts3 = [Opts2 | ["database", 0, Database, 0]]
+    case pgsql_util:get_value(database, Opts) of
+        false ->
+            Opts3 = Opts2;
+        Database ->
+            Opts3 = [Opts2 | ["database", 0, Database, 0]]
     end,
 
-    Port = proplists:get_value(port, Opts, 5432),
+    Port = pgsql_util:get_value(port, Opts, 5432),
     SockOpts = [{active, false}, {packet, raw}, binary, {nodelay, true}],
     {ok, S} = gen_tcp:connect(Host, Port, SockOpts),
 
@@ -56,12 +56,12 @@ init([C, Host, Username, Opts]) ->
       sock = S,
       tail = <<>>},
 
-    case proplists:get_value(ssl, Opts) of
+    case pgsql_util:get_value(ssl, Opts) of
         T when T == true; T == required ->
             ok = gen_tcp:send(S, <<8:?int32, 80877103:?int32>>),
             {ok, <<Code>>} = gen_tcp:recv(S, 1),
             State2 = start_ssl(Code, T, Opts, State);
-        _ ->
+        _Else ->
             State2 = State
     end,
 
@@ -100,9 +100,6 @@ handle_info({Closed, _Sock}, State)
 handle_info({Error, _Sock, Reason}, State)
   when Error == tcp_error; Error == ssl_error ->
     {stop, {sock_error, Reason}, State};
-
-handle_info({'EXIT', _Pid, Reason}, State) ->
-    {stop, Reason, State};
 
 handle_info(Info, State) ->
     {stop, {unsupported_info, Info}, State}.
@@ -197,9 +194,9 @@ decode_fields(<<Type:8, Rest/binary>>, Acc) ->
 decode_error(Bin) ->
     Fields = decode_fields(Bin),
     Error = #error{
-      severity = lower_atom(proplists:get_value($S, Fields)),
-      code     = proplists:get_value($C, Fields),
-      message  = proplists:get_value($M, Fields),
+      severity = lower_atom(pgsql_util:get_value($S, Fields)),
+      code     = pgsql_util:get_value($C, Fields),
+      message  = pgsql_util:get_value($M, Fields),
       extra    = decode_error_extra(Fields)},
     Error.
 
@@ -210,9 +207,11 @@ decode_error_extra(Fields) ->
 decode_error_extra([], _Fields, Extra) ->
     Extra;
 decode_error_extra([{Type, Name} | T], Fields, Extra) ->
-    case proplists:get_value(Type, Fields) of
-        undefined -> decode_error_extra(T, Fields, Extra);
-        Value     -> decode_error_extra(T, Fields, [{Name, Value} | Extra])
+    case pgsql_util:get_value(Type, Fields) of
+        false ->
+            decode_error_extra(T, Fields, Extra);
+        Value ->
+            decode_error_extra(T, Fields, [{Name, Value} | Extra])
     end.
 
 lower_atom(Str) when is_binary(Str) ->

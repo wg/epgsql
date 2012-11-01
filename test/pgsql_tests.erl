@@ -1,7 +1,5 @@
 -module(pgsql_tests).
 
--export([run_tests/0]).
-
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("public_key/include/public_key.hrl").
 -include("pgsql.hrl").
@@ -60,7 +58,7 @@ connect_with_ssl_test() ->
 
 connect_with_client_cert_test() ->
     lists:foreach(fun application:start/1, ?ssl_apps),
-    Dir = filename:join(filename:dirname(code:which(pgsql_tests)), "../test_data"),
+    Dir = filename:join(filename:dirname(code:which(pgsql_tests)), "data"),
     File = fun(Name) -> filename:join(Dir, Name) end,
     {ok, Pem} = file:read_file(File("epgsql.crt")),
     [{'Certificate', Der, not_encrypted}] = public_key:pem_decode(Pem),
@@ -574,13 +572,6 @@ listen_notify_payload_test() ->
 application_test() ->
     lists:foreach(fun application:start/1, ?ssl_apps),
     ok = application:start(epgsql).
-
-%% -- run all tests --
-
-run_tests() ->
-    Files = filelib:wildcard("test_ebin/*tests.beam"),
-    Mods = [list_to_atom(filename:basename(F, ".beam")) || F <- Files],
-    eunit:test(Mods, []).
 
 %% -- internal functions --
 
