@@ -196,9 +196,11 @@ decode_fields(<<Type:8, Rest/binary>>, Acc) ->
 %% decode ErrorResponse
 decode_error(Bin) ->
     Fields = decode_fields(Bin),
+    Code   = proplists:get_value($C, Fields),
     Error = #error{
       severity = lower_atom(proplists:get_value($S, Fields)),
-      code     = proplists:get_value($C, Fields),
+      code     = Code,
+      codename = pgsql_errcodes:to_name(Code),
       message  = proplists:get_value($M, Fields),
       extra    = decode_error_extra(Fields)},
     Error.
