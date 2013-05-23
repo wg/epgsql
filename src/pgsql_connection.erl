@@ -254,13 +254,17 @@ ready({parse, Name, Sql, Types}, From, State) ->
 ready({bind, Statement, PortalName, Parameters}, From, State) ->
     #state{timeout = Timeout} = State,
     #statement{name = StatementName, columns = Columns, types = Types} = Statement,
-    Typed_Parameters = lists:zip(Types, Parameters),
-    Bin1 = encode_parameters(Typed_Parameters),
-    Bin2 = encode_formats(Columns),
-    send(State, $B, [PortalName, 0, StatementName, 0, Bin1, Bin2]),
-    send(State, $H, []),
-    State2 = State#state{statement = Statement, reply_to = From},
-    {next_state, binding, State2, Timeout};
+    try
+        Typed_Parameters = lists:zip(Types, Parameters),
+        Bin1 = encode_parameters(Typed_Parameters),
+        Bin2 = encode_formats(Columns),
+        send(State, $B, [PortalName, 0, StatementName, 0, Bin1, Bin2]),
+        send(State, $H, []),
+        State2 = State#state{statement = Statement, reply_to = From},
+        {next_state, binding, State2, Timeout}
+    catch error:Reason ->
+            {reply, {error, Reason}, ready, State, Timeout}
+    end;
 
 ready({execute, Statement, PortalName, MaxRows}, From, State) ->
     #state{timeout = Timeout} = State,
