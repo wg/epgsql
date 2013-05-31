@@ -127,12 +127,18 @@ decode_array(Data, Type, [Len | T]) ->
 encode_net({{_, _, _, _} = Ip, Mask}) ->
     B = list_to_binary(tuple_to_list(Ip)),
     <<2, Mask, 1, (byte_size(B)), B/binary>>;
+encode_net({{_, _, _, _, _, _, _, _} = Ip, Mask}) ->
+    B = << <<Elem:16/big-unsigned-integer>> || Elem <- tuple_to_list(Ip) >>,
+    <<3, Mask, 1, (byte_size(B)), B/binary>>;
 encode_net({{_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _} = Ip, Mask}) ->
     B = list_to_binary(tuple_to_list(Ip)),
     <<3, Mask, 1, (byte_size(B)), B/binary>>;
 encode_net({_, _, _, _} = Ip) ->
     B = list_to_binary(tuple_to_list(Ip)),
     <<2, 32, 0, (byte_size(B)), B/binary>>;
+encode_net({_, _, _, _, _, _, _, _} = Ip) ->
+    B = << <<Elem:16/big-unsigned-integer>> || Elem <- tuple_to_list(Ip) >>,
+    <<3, 128, 0, (byte_size(B)), B/binary>>;
 encode_net({_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _} = Ip) ->
     B = list_to_binary(tuple_to_list(Ip)),
     <<3, 128, 0, (byte_size(B)), B/binary>>.
@@ -144,7 +150,14 @@ decode_net(<<Family, Mask, IsCidr, Size, Bin/binary>>) ->
                                 3 -> %% AF_INET6
                                     {128, 16}
                             end,
-    IpTuple = list_to_tuple(binary_to_list(Bin)),
+    IpTuple =
+        list_to_tuple(
+          case byte_size(Bin) of
+              4 ->
+                  binary_to_list(Bin);
+              16 ->
+                  [X bsl 8 bor Y || <<X:8, Y:8>> <= Bin]
+          end),
     case Size =:= ProperSize orelse Mask > MaxMask of
         false ->
             io:format("Ivalid value for inet type received"),
