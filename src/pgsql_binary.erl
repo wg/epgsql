@@ -36,6 +36,7 @@ encode(float8array, L) when is_list(L)      -> encode_array(float8, L);
 encode(chararray, L) when is_list(L)        -> encode_array(bpchar, L);
 encode(textarray, L) when is_list(L)        -> encode_array(text, L);
 encode(uuidarray, L) when is_list(L)        -> encode_array(uuid, L);
+encode(varchararray, L) when is_list(L)     -> encode_array(varchar, L);
 encode(Type, L) when is_list(L)             -> encode(Type, list_to_binary(L));
 encode(_Type, _Value)                       -> {error, unsupported}.
 
@@ -64,6 +65,7 @@ decode(float8array, B)                      -> decode_array(B);
 decode(chararray, B)                        -> decode_array(B);
 decode(textarray, B)                        -> decode_array(B);
 decode(uuidarray, B)                        -> decode_array(B);
+decode(varchararray, B)                     -> decode_array(B);
 decode(_Other, Bin)                         -> Bin.
 
 encode_array(Type, A) ->
@@ -162,4 +164,5 @@ supports(float8array) -> true;
 supports(chararray)   -> true;
 supports(textarray)   -> true;
 supports(uuidarray)   -> true;
+supports(varchararray)   -> true;
 supports(_Type)       -> false.
