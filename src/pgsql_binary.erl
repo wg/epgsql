@@ -26,6 +26,7 @@ encode(interval = Type, B)                  -> ?datetime:encode(Type, B);
 encode(bytea, B) when is_binary(B)          -> <<(byte_size(B)):?int32, B/binary>>;
 encode(text, B) when is_binary(B)           -> <<(byte_size(B)):?int32, B/binary>>;
 encode(varchar, B) when is_binary(B)        -> <<(byte_size(B)):?int32, B/binary>>;
+encode(uuid, B) when is_binary(B)           -> encode_uuid(B);
 encode(boolarray, L) when is_list(L)        -> encode_array(bool, L);
 encode(int2array, L) when is_list(L)        -> encode_array(int2, L);
 encode(int4array, L) when is_list(L)        -> encode_array(int4, L);
@@ -34,6 +35,7 @@ encode(float4array, L) when is_list(L)      -> encode_array(float4, L);
 encode(float8array, L) when is_list(L)      -> encode_array(float8, L);
 encode(chararray, L) when is_list(L)        -> encode_array(bpchar, L);
 encode(textarray, L) when is_list(L)        -> encode_array(text, L);
+encode(uuidarray, L) when is_list(L)        -> encode_array(uuid, L);
 encode(Type, L) when is_list(L)             -> encode(Type, list_to_binary(L));
 encode(_Type, _Value)                       -> {error, unsupported}.
 
@@ -52,6 +54,7 @@ decode(date = Type, B)                      -> ?datetime:decode(Type, B);
 decode(timestamp = Type, B)                 -> ?datetime:decode(Type, B);
 decode(timestamptz = Type, B)               -> ?datetime:decode(Type, B);
 decode(interval = Type, B)                  -> ?datetime:decode(Type, B);
+decode(uuid, B)                             -> decode_uuid(B);
 decode(boolarray, B)                        -> decode_array(B);
 decode(int2array, B)                        -> decode_array(B);
 decode(int4array, B)                        -> decode_array(B);
@@ -60,6 +63,7 @@ decode(float4array, B)                      -> decode_array(B);
 decode(float8array, B)                      -> decode_array(B);
 decode(chararray, B)                        -> decode_array(B);
 decode(textarray, B)                        -> decode_array(B);
+decode(uuidarray, B)                        -> decode_array(B);
 decode(_Other, Bin)                         -> Bin.
 
 encode_array(Type, A) ->
@@ -113,6 +117,24 @@ decode_record(<<Type:?int32, Len:?int32, Value:Len/binary, Rest/binary>>, Acc) -
     Value2 = decode(pgsql_types:oid2type(Type), Value),
     decode_record(Rest, [Value2 | Acc]).
 
+%% @doc encode a UUID.  This accepts UUIDs as lists or binaries in either form of:
+%%   <<"80910cc0-f7a5-45a6-9528-22d335b03e05">>
+%% or
+%%   <<"80910cc0f7a545a6952822d335b03e05">>
+encode_uuid(U) when is_binary(U) ->
+    encode_uuid(binary_to_list(U));
+encode_uuid(U) ->
+    Hex = lists:filter(fun(Elem) -> Elem /= $- end, U),
+    {ok, [Int], _} = io_lib:fread("~16u", Hex),
+    <<16:?int32,Int:128>>.
+
+%% @doc decode a UUID to the format:
+%%   <<"80910cc0-f7a5-45a6-9528-22d335b03e05">>
+decode_uuid(<<U0:32, U1:16, U2:16, U3:16, U4:48>>) ->
+    list_to_binary(lists:flatten(io_lib:format("~8.16.0b-~4.16.0b-~4.16.0b-~4.16.0b-~12.16.0b",
+                                               [U0, U1, U2, U3, U4]))).
+
+
 supports(bool)    -> true;
 supports(bpchar)  -> true;
 supports(int2)    -> true;
@@ -130,6 +152,7 @@ supports(timetz)  -> true;
 supports(timestamp)   -> true;
 supports(timestamptz) -> true;
 supports(interval)    -> true;
+supports(uuid)        -> true;
 supports(boolarray)   -> true;
 supports(int2array)   -> true;
 supports(int4array)   -> true;
@@ -138,4 +161,5 @@ supports(float4array) -> true;
 supports(float8array) -> true;
 supports(chararray)   -> true;
 supports(textarray)   -> true;
+supports(uuidarray)   -> true;
 supports(_Type)       -> false.

@@ -446,7 +446,10 @@ array_type_test() ->
           Select(int8,   [[[[1, 2]], [[3, 4]]]]),
           Select(text,   [<<"one">>, <<"two>">>]),
           Select(float4, [0.0, 1.0, 0.123]),
-          Select(float8, [0.0, 1.0, 0.123])
+          Select(float8, [0.0, 1.0, 0.123]),
+          Select(uuid,   [<<"80910cc0-f7a5-45a6-9528-22d335b03e05">>,
+                          <<"6eb989e8-1827-4f71-8d59-a8269388182b">>,
+                          <<"b5027485-2eaf-4cde-a3cb-bd372a75c0fb">>])
       end).
 
 text_format_test() ->
