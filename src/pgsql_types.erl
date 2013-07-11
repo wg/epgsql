@@ -51,6 +51,7 @@ oid2type(1033) -> aclitem;
 oid2type(1263) -> cstringarray;
 oid2type(1042) -> bpchar;
 oid2type(1043) -> varchar;
+oid2type(1015) -> varchararray;
 oid2type(1082) -> date;
 oid2type(1083) -> time;
 oid2type(1114) -> timestamp;
@@ -84,6 +85,8 @@ oid2type(2282) -> opaque;
 oid2type(2283) -> anyelement;
 oid2type(2776) -> anynonarray;
 oid2type(3500) -> anyenum;
+oid2type(2950) -> uuid;
+oid2type(2951) -> uuidarray;
 oid2type(Oid)  -> {unknown_oid, Oid}.
 
 type2oid(bool)                  -> 16;
@@ -135,6 +138,7 @@ type2oid(aclitem)               -> 1033;
 type2oid(cstringarray)          -> 1263;
 type2oid(bpchar)                -> 1042;
 type2oid(varchar)               -> 1043;
+type2oid(varchararray)          -> 1015;
 type2oid(date)                  -> 1082;
 type2oid(time)                  -> 1083;
 type2oid(timestamp)             -> 1114;
@@ -168,4 +172,6 @@ type2oid(opaque)                -> 2282;
 type2oid(anyelement)            -> 2283;
 type2oid(anynonarray)           -> 2776;
 type2oid(anyenum)               -> 3500;
+type2oid(uuid)                  -> 2950;
+type2oid(uuidarray)             -> 2951;
 type2oid(Type)                  -> {unknown_type, Type}.
