@@ -176,9 +176,7 @@ decode_net(<<Family, Mask, IsCidr, Size, Bin/binary>>) ->
     end.
 
 encode_uuid(B) ->
-    {ok, [Int], _} =
-        io_lib:fread("~16u", [X || <<X:8>> <= B, X =/= $-]),
-    <<Int:128/big-unsigned>>.
+    <<(list_to_integer([X || <<X:8>> <= B, X =/= $-], 16)):128>>.
 
 decode_uuid(<<A:32, B:16, C:16, D:16, E:48>>) ->
     iolist_to_binary(
