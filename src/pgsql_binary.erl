@@ -49,6 +49,8 @@ encode(chararray, L) when is_list(L)        -> encode_array(bpchar, L);
 encode(varchararray, L) when is_list(L)     -> encode_array(varchar, L);
 encode(textarray, L) when is_list(L)        -> encode_array(text, L);
 encode(recordarray, L) when is_list(L)      -> encode_array(record, L);
+encode(uuidarray, L) when is_list(L)        -> encode_array(uuid, L);
+encode(uuid, B) when is_binary(B)           -> encode(bytea, encode_uuid(B));
 encode(Type, L) when is_list(L)             -> encode(Type, list_to_binary(L));
 encode(_Type, _Value)                       -> {error, unsupported}.
 
@@ -85,8 +87,10 @@ decode(varchararray, B)                     -> decode_array(B);
 decode(textarray, B)                        -> decode_array(B);
 decode(inetarray, B)                        -> decode_array(B);
 decode(recordarray, B)                      -> decode_array(B);
+decode(uuidarray, B)                        -> decode_array(B);
 decode(inet, B)                             -> decode_net(B);
 decode(cidr, B)                             -> decode_net(B);
+decode(uuid, B)                             -> decode_uuid(B);
 decode(_Other, Bin)                         -> Bin.
 
 encode_array(Type, A) ->
@@ -171,6 +175,16 @@ decode_net(<<Family, Mask, IsCidr, Size, Bin/binary>>) ->
             end
     end.
 
+encode_uuid(B) ->
+    {ok, [Int], _} =
+        io_lib:fread("~16u", [X || <<X:8>> <= B, X =/= $-]),
+    <<Int:128/big-unsigned>>.
+
+decode_uuid(<<A:32, B:16, C:16, D:16, E:48>>) ->
+    iolist_to_binary(
+      io_lib:format("~8.16.0b-~4.16.0b-~4.16.0b-~4.16.0b-~12.16.0b",
+                    [A, B, C, D, E])).
+
 decode_elements(Rest, _Type, Acc, 0) ->
     {lists:reverse(Acc), Rest};
 decode_elements(<<-1:?int32, Rest/binary>>, Type, Acc, N) ->
@@ -219,4 +233,6 @@ supports(recordarray)  -> true;
 supports(inet)         -> true;
 supports(cidr)         -> true;
 supports(point)        -> true;
+supports(uuid)         -> true;
+supports(uuidarray)    -> true;
 supports(_Type)        -> false.
