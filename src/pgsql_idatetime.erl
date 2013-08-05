@@ -17,11 +17,11 @@
 -define(usecs_per_minute, 60000000).
 -define(usecs_per_sec, 1000000).
 
-decode(date, <<J:?int32>> = P)                     -> j2date(?postgres_epoc_jdate + J);
+decode(date, <<J:?int32>>)                         -> j2date(?postgres_epoc_jdate + J);
 decode(time, <<N:?int64>>)                         -> i2time(N);
 decode(timetz, <<N:?int64, TZ:?int32>>)            -> {i2time(N), TZ};
-decode(timestamp, <<N:?int64>> = P)                -> i2timestamp(N);
-decode(timestamptz, <<N:?int64>> = P)              -> i2timestamp(N);
+decode(timestamp, <<N:?int64>>)                    -> i2timestamp(N);
+decode(timestamptz, <<N:?int64>>)                  -> i2timestamp(N);
 decode(interval, <<N:?int64, D:?int32, M:?int32>>) -> {i2time(N), D, M}.
 
 encode(date, D)
