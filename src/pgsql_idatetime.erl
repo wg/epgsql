@@ -17,19 +17,61 @@
 -define(usecs_per_minute, 60000000).
 -define(usecs_per_sec, 1000000).
 
-decode(date, <<J:?int32>>)                         -> j2date(?postgres_epoc_jdate + J);
+decode(date, <<J:?int32>> = P)                     -> j2date(?postgres_epoc_jdate + J);
 decode(time, <<N:?int64>>)                         -> i2time(N);
 decode(timetz, <<N:?int64, TZ:?int32>>)            -> {i2time(N), TZ};
-decode(timestamp, <<N:?int64>>)                    -> i2timestamp(N);
-decode(timestamptz, <<N:?int64>>)                  -> i2timestamp(N);
+decode(timestamp, <<N:?int64>> = P)                -> i2timestamp(N);
+decode(timestamptz, <<N:?int64>> = P)              -> i2timestamp(N);
 decode(interval, <<N:?int64, D:?int32, M:?int32>>) -> {i2time(N), D, M}.
 
-encode(date, D)         -> <<4:?int32, (date2j(D) - ?postgres_epoc_jdate):?int32>>;
-encode(time, T)         -> <<8:?int32, (time2i(T)):?int64>>;
-encode(timetz, {T, TZ}) -> <<12:?int32, (time2i(T)):?int64, TZ:?int32>>;
-encode(timestamp, TS)   -> <<8:?int32, (timestamp2i(TS)):?int64>>;
-encode(timestamptz, TS) -> <<8:?int32, (timestamp2i(TS)):?int64>>;
-encode(interval, {T, D, M}) -> <<16:?int32, (time2i(T)):?int64, D:?int32, M:?int32>>.
+encode(date, D)
+  when D =:= <<"infinity">>;
+       D =:= "infinity";
+       D =:= 'infinity';
+       D =:= {5881610,7,11} ->
+    <<4:?int32, 127,255,255,255>>;
+encode(date, D)
+  when D =:= <<"-infinity">>;
+       D =:= "-infinity";
+       D =:= '-infinity';
+       D =:= {-5877610,7,-8} ->
+    <<4:?int32, 128,0,0,0>>;
+encode(date, D) ->
+    <<4:?int32, (date2j(D) - ?postgres_epoc_jdate):?int32>>;
+encode(time, T) ->
+    <<8:?int32, (time2i(T)):?int64>>;
+encode(timetz, {T, TZ}) ->
+    <<12:?int32, (time2i(T)):?int64, TZ:?int32>>;
+encode(timestamp, TS)
+  when TS =:= <<"infinity">>;
+       TS =:= "infinity";
+       TS =:= 'infinity';
+       TS =:= {{294277,1,9},{4,0,54.775807}} ->
+    <<8:?int32, 127,255,255,255,255,255,255,255>>;
+encode(timestamp, TS)
+  when TS =:= <<"-infinity">>;
+       TS =:= "-infinity";
+       TS =:= '-infinity';
+       TS =:= {{-290277,12,23},{19,59,5.224192}} ->
+    <<8:?int32, 128,0,0,0,0,0,0,0>>;
+encode(timestamp, TS)   ->
+    <<8:?int32, (timestamp2i(TS)):?int64>>;
+encode(timestamptz, TS)
+  when TS =:= <<"infinity">>;
+       TS =:= "infinity";
+       TS =:= 'infinity';
+       TS =:= {{294277,1,9},{4,0,54.775807}} ->
+    <<8:?int32, 127,255,255,255,255,255,255,255>>;
+encode(timestamptz, TS)
+  when TS =:= <<"-infinity">>;
+       TS =:= "-infinity";
+       TS =:= '-infinity';
+       TS =:= {{-290277,12,23},{19,59,5.224192}} ->
+    <<8:?int32, 128,0,0,0,0,0,0,0>>;
+encode(timestamptz, TS) ->
+    <<8:?int32, (timestamp2i(TS)):?int64>>;
+encode(interval, {T, D, M}) ->
+    <<16:?int32, (time2i(T)):?int64, D:?int32, M:?int32>>.
 
 j2date(N) ->
     J = N + 32044,
