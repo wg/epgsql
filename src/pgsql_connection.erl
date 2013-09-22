@@ -640,11 +640,10 @@ encode_list(L) ->
 notify(#state{reply_to = {Pid, _Tag}}, Msg) ->
     Pid ! {pgsql, self(), Msg}.
 
-notify_async(#state{async = Pid}, Msg) ->
-    case is_pid(Pid) of
-        true  -> Pid ! {pgsql, self(), Msg};
-        false -> false
-    end.
+notify_async(#state{async = Server}, Msg) when is_pid(Server) orelse is_atom(Server) ->
+    Server ! {pgsql, self(), Msg};
+notify_async(#state{}, _Msg) ->
+    false.
 
 to_binary(B) when is_binary(B) -> B;
 to_binary(L) when is_list(L)   -> list_to_binary(L).
