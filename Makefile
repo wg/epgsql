@@ -15,6 +15,9 @@ RELEASE		:= $(NAME)-$(VERSION).tar.gz
 APPDIR		:= $(NAME)-$(VERSION)
 BEAMS		:= $(SRC:src/%.erl=ebin/%.beam) 
 
+all:
+	@rebar compile
+
 compile: $(BEAMS) ebin/$(NAME).app
 
 app: compile
