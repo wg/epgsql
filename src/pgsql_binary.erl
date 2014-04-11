@@ -233,4 +233,5 @@ supports(cidr)         -> true;
 supports(point)        -> true;
 supports(uuid)         -> true;
 supports(uuidarray)    -> true;
+supports(inetarray)    -> true;
 supports(_Type)        -> false.
