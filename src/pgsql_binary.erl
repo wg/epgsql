@@ -39,6 +39,7 @@ encode(varchar, B) when is_binary(B)        -> <<(byte_size(B)):?int32, B/binary
 encode(inet, B)                             -> encode(bytea, encode_net(B));
 encode(cidr, B)                             -> encode(bytea, encode_net(B));
 encode(boolarray, L) when is_list(L)        -> encode_array(bool, L);
+encode(cidrarray, L) when is_list(L)        -> encode_array(cidr, L);
 encode(inetarray, L) when is_list(L)        -> encode_array(inet, L);
 encode(int2array, L) when is_list(L)        -> encode_array(int2, L);
 encode(int4array, L) when is_list(L)        -> encode_array(int4, L);
@@ -85,6 +86,7 @@ decode(float8array, B)                      -> decode_array(B);
 decode(chararray, B)                        -> decode_array(B);
 decode(varchararray, B)                     -> decode_array(B);
 decode(textarray, B)                        -> decode_array(B);
+decode(cidrarray, B)                        -> decode_array(B);
 decode(inetarray, B)                        -> decode_array(B);
 decode(recordarray, B)                      -> decode_array(B);
 decode(uuidarray, B)                        -> decode_array(B);
@@ -233,5 +235,6 @@ supports(cidr)         -> true;
 supports(point)        -> true;
 supports(uuid)         -> true;
 supports(uuidarray)    -> true;
+supports(cidrarray)    -> true;
 supports(inetarray)    -> true;
 supports(_Type)        -> false.
