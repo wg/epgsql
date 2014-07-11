@@ -2,7 +2,7 @@
 
 -module(pgsql).
 
--export([connect/2, connect/3, connect/4, close/1]).
+-export([connect/1, connect/2, connect/3, connect/4, close/1]).
 -export([get_parameter/2, squery/2, equery/2, equery/3]).
 -export([parse/2, parse/3, parse/4, describe/2, describe/3]).
 -export([bind/3, bind/4, execute/2, execute/3, execute/4]).
@@ -12,7 +12,13 @@
 -include("pgsql.hrl").
 
 %% -- client interface --
-
+connect(Settings) ->
+	Host = proplists:get_value(host, Settings, "localhost"),
+	Username = proplists:get_value(username, Settings, os:getenv("USER")),
+	Password = proplists:get_value(password, Settings, ""),
+	
+	connect(Host, Username, Password, Settings).
+	
 connect(Host, Opts) ->
     connect(Host, os:getenv("USER"), "", Opts).
 
