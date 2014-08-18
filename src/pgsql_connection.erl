@@ -17,7 +17,7 @@
 -export([executing/2, closing/2, synchronizing/2, timeout/2]).
 -export([aborted/2, aborted/3]).
 
--include("pgsql.hrl").
+-include("../include/pgsql.hrl").
 
 -record(state, {
           reader,
