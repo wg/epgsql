@@ -81,10 +81,10 @@ j2date(N) ->
     Q2 = J2 div 1461,
     J3 = J2 - Q2 * 1461,
     Y = J3 * 4 div 1461,
-    case Y of
-        0 -> J4 = ((J3 + 306) rem 366) + 123;
-        _ -> J4 = ((J3 + 305) rem 365) + 123
-    end,
+    J4 = case Y of
+             0 -> ((J3 + 306) rem 366) + 123;
+             _ -> ((J3 + 305) rem 365) + 123
+         end,
     Year = (Y + Q2 * 4) - 4800,
     Q3 = J4 * 2141 div 65536,
     Day = J4 - 7834 * Q3 div 256,
@@ -92,14 +92,12 @@ j2date(N) ->
     {Year, Month, Day}.
 
 date2j({Y, M, D}) ->
-    case M > 2 of
-        true ->
-            M2 = M + 1,
-            Y2 = Y + 4800;
-        false ->
-            M2 = M + 13,
-            Y2 = Y + 4799
-    end,
+    {M2, Y2} = case M > 2 of
+                   true ->
+                       {M + 1, Y + 4800};
+                   false ->
+                       {M + 13, Y + 4799}
+               end,
     C = Y2 div 100,
     J1 = Y2 * 365 - 32167,
     J2 = J1 + (Y2 div 4 - C + C div 4),

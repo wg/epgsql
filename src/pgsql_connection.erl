@@ -154,25 +154,25 @@ auth({$R, <<5:?int32, Salt:4/binary>>}, State) ->
     {next_state, auth, State, Timeout};
 
 auth({$R, <<M:?int32, _/binary>>}, State) ->
-    case M of
-        2 -> Method = kerberosV5;
-        4 -> Method = crypt;
-        6 -> Method = scm;
-        7 -> Method = gss;
-        8 -> Method = sspi;
-        _ -> Method = unknown
-    end,
+    Method = case M of
+                 2 -> kerberosV5;
+                 4 -> crypt;
+                 6 -> scm;
+                 7 -> gss;
+                 8 -> sspi;
+                 _ -> unknown
+             end,
     Error = {error, {unsupported_auth_method, Method}},
     gen_fsm:reply(State#state.reply_to, Error),
     {stop, normal, State};
 
 %% ErrorResponse
 auth({error, E}, State) ->
-    case E#error.code of
-        <<"28000">> -> Why = invalid_authorization_specification;
-        <<"28P01">> -> Why = invalid_password;
-        Any         -> Why = Any
-    end,
+    Why = case E#error.code of
+              <<"28000">> -> invalid_authorization_specification;
+              <<"28P01">> -> invalid_password;
+              Any         -> Any
+          end,
     gen_fsm:reply(State#state.reply_to, {error, Why}),
     {stop, normal, State};
 
@@ -188,10 +188,10 @@ initializing({$K, <<Pid:?int32, Key:?int32>>}, State) ->
 
 %% ErrorResponse
 initializing({error, E}, State) ->
-    case E#error.code of
-        <<"28000">> -> Why = invalid_authorization_specification;
-        Any         -> Why = Any
-    end,
+    Why = case E#error.code of
+              <<"28000">> -> invalid_authorization_specification;
+              Any         -> Any
+          end,
     gen_fsm:reply(State#state.reply_to, {error, Why}),
     {stop, normal, State};
 
@@ -235,10 +235,10 @@ ready({equery, Statement, Parameters}, From, State) ->
     {reply, ok, querying, State2, Timeout};
 
 ready({get_parameter, Name}, _From, State) ->
-    case lists:keysearch(Name, 1, State#state.parameters) of
-        {value, {Name, Value}} -> Value;
-        false                  -> Value = undefined
-    end,
+    Value = case lists:keysearch(Name, 1, State#state.parameters) of
+                {value, {Name, Val}} -> Val;
+                false                  -> undefined
+            end,
     {reply, {ok, Value}, ready, State};
 
 ready({parse, Name, Sql, Types}, From, State) ->
@@ -275,20 +275,20 @@ ready({execute, Statement, PortalName, MaxRows}, From, State) ->
 
 ready({describe, Type, Name}, From, State) ->
     #state{timeout = Timeout} = State,
-    case Type of
-        statement -> Type2 = $S;
-        portal    -> Type2 = $P
-    end,
+    Type2 = case Type of
+                statement -> $S;
+                portal    -> $P
+            end,
     send(State, $D, [Type2, Name, 0]),
     send(State, $H, []),
     {next_state, describing, State#state{reply_to = From}, Timeout};
 
 ready({close, Type, Name}, From, State) ->
     #state{timeout = Timeout} = State,
-    case Type of
-        statement -> Type2 = $S;
-        portal    -> Type2 = $P
-    end,
+    Type2 = case Type of
+                statement -> $S;
+                portal    -> $P
+            end,
     send(State, $C, [Type2, Name, 0]),
     send(State, $H, []),
     {next_state, closing, State#state{reply_to = From}, Timeout};
@@ -545,10 +545,10 @@ decode_data([], _Bin, Acc) ->
 decode_data([_C | T], <<-1:?int32, Rest/binary>>, Acc) ->
     decode_data(T, Rest, [null | Acc]);
 decode_data([C | T], <<Len:?int32, Value:Len/binary, Rest/binary>>, Acc) ->
-    case C of
-        #column{type = Type, format = 1}   -> Value2 = pgsql_binary:decode(Type, Value);
-        #column{}                          -> Value2 = Value
-    end,
+    Value2 = case C of
+                 #column{type = Type, format = 1}   -> pgsql_binary:decode(Type, Value);
+                 #column{}                          -> Value
+             end,
     decode_data(T, Rest, [Value2 | Acc]).
 
 %% decode column information
@@ -560,7 +560,7 @@ decode_columns(0, _Bin, Acc) ->
 decode_columns(N, Bin, Acc) ->
     {Name, Rest} = pgsql_sock:decode_string(Bin),
     <<_Table_Oid:?int32, _Attrib_Num:?int16, Type_Oid:?int32,
-     Size:?int16, Modifier:?int32, Format:?int16, Rest2/binary>> = Rest,
+      Size:?int16, Modifier:?int32, Format:?int16, Rest2/binary>> = Rest,
     Desc = #column{
       name     = Name,
       type     = pgsql_types:oid2type(Type_Oid),
@@ -593,10 +593,10 @@ encode_types([], Count, Acc) ->
     <<Count:?int16, Acc/binary>>;
 
 encode_types([Type | T], Count, Acc) ->
-    case Type of
-        undefined -> Oid = 0;
-        _Any      -> Oid = pgsql_types:type2oid(Type)
-    end,
+    Oid = case Type of
+              undefined -> 0;
+              _Any      -> pgsql_types:type2oid(Type)
+          end,
     encode_types(T, Count + 1, <<Acc/binary, Oid:?int32>>).
 
 %% encode column formats
