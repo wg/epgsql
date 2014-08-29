@@ -33,11 +33,13 @@ GRANT ALL ON DATABASE epgsql_test_db2 to epgsql_test;
 
 \c epgsql_test_db1;
 
+DROP TABLE IF EXISTS test_table1;
 CREATE TABLE test_table1 (id integer primary key, value text);
 
 INSERT INTO test_table1 (id, value) VALUES (1, 'one');
 INSERT INTO test_table1 (id, value) VALUES (2, 'two');
 
+DROP TABLE IF EXISTS test_table2;
 CREATE TABLE test_table2 (
   c_bool bool,
   c_char char,  
@@ -54,7 +56,8 @@ CREATE TABLE test_table2 (
   c_timetz timetz,
   c_timestamp timestamp,
   c_timestamptz timestamptz,
-  c_interval interval);
+  c_interval interval,
+  c_int4range int4range);
 
 CREATE LANGUAGE plpgsql;
 

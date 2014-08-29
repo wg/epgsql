@@ -37,6 +37,7 @@ encode(chararray, L) when is_list(L)        -> encode_array(bpchar, L);
 encode(textarray, L) when is_list(L)        -> encode_array(text, L);
 encode(uuidarray, L) when is_list(L)        -> encode_array(uuid, L);
 encode(varchararray, L) when is_list(L)     -> encode_array(varchar, L);
+encode(int4range, R) when is_tuple(R)       -> encode_int4range(R);
 encode(Type, L) when is_list(L)             -> encode(Type, list_to_binary(L));
 encode(_Type, _Value)                       -> {error, unsupported}.
 
@@ -66,6 +67,7 @@ decode(chararray, B)                        -> decode_array(B);
 decode(textarray, B)                        -> decode_array(B);
 decode(uuidarray, B)                        -> decode_array(B);
 decode(varchararray, B)                     -> decode_array(B);
+decode(int4range, B)                        -> decode_int4range(B);
 decode(_Other, Bin)                         -> Bin.
 
 encode_array(Type, A) ->
@@ -133,9 +135,32 @@ encode_uuid(U) ->
 %% @doc decode a UUID to the format:
 %%   <<"80910cc0-f7a5-45a6-9528-22d335b03e05">>
 decode_uuid(<<U0:32, U1:16, U2:16, U3:16, U4:48>>) ->
-    list_to_binary(lists:flatten(io_lib:format("~8.16.0b-~4.16.0b-~4.16.0b-~4.16.0b-~12.16.0b",
-                                               [U0, U1, U2, U3, U4]))).
+    erlang:iolist_to_binary(io_lib:format("~8.16.0b-~4.16.0b-~4.16.0b-~4.16.0b-~12.16.0b",
+                                          [U0, U1, U2, U3, U4])).
 
+%% @doc encode an int4range
+encode_int4range({minus_infinity, plus_infinity}) ->
+    <<1:?int32, 24:1/big-signed-unit:8>>;
+encode_int4range({From, plus_infinity}) ->
+    FromInt = to_int(From),
+    <<9:?int32, 18:1/big-signed-unit:8, 4:?int32, FromInt:?int32>>;
+encode_int4range({minus_infinity, To}) ->
+    ToInt = to_int(To),
+    <<9:?int32, 8:1/big-signed-unit:8, 4:?int32, ToInt:?int32>>;
+encode_int4range({From, To}) ->
+    FromInt = to_int(From),
+    ToInt = to_int(To),
+    <<17:?int32, 2:1/big-signed-unit:8, 4:?int32, FromInt:?int32, 4:?int32, ToInt:?int32>>.
+
+to_int(N) when is_integer(N) -> N;
+to_int(S) when is_list(S) -> erlang:list_to_integer(S);
+to_int(B) when is_binary(B) -> erlang:binary_to_integer(B).
+
+%% @doc decode an int4range
+decode_int4range(<<2:1/big-signed-unit:8, 4:?int32, From:?int32, 4:?int32, To:?int32>>) -> {From, To};
+decode_int4range(<<8:1/big-signed-unit:8, 4:?int32, To:?int32>>) -> {minus_infinity, To};
+decode_int4range(<<18:1/big-signed-unit:8, 4:?int32, From:?int32>>) -> {From, plus_infinity};
+decode_int4range(<<24:1/big-signed-unit:8>>) -> {minus_infinity, plus_infinity}.
 
 supports(bool)    -> true;
 supports(bpchar)  -> true;
@@ -164,5 +189,6 @@ supports(float8array) -> true;
 supports(chararray)   -> true;
 supports(textarray)   -> true;
 supports(uuidarray)   -> true;
-supports(varchararray)   -> true;
+supports(varchararray) -> true;
+supports(int4range) -> true;
 supports(_Type)       -> false.

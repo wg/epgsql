@@ -1,0 +1,7 @@
+source "https://api.berkshelf.com"
+
+cookbook 'apt'
+cookbook 'git'
+cookbook 'postgresql'
+cookbook 'erlang'
+cookbook 'epgsql-test-setup', path: ::File.expand_path('../cookbooks/epgsql-test-setup', __FILE__)
