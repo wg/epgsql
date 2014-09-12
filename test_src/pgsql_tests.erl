@@ -9,8 +9,6 @@
 -define(host, "localhost").
 -define(port, 5432).
 
--define(ssl_apps, [crypto, public_key, ssl]).
-
 connect_test() ->
     connect_only([]).
 
@@ -50,7 +48,7 @@ connect_with_invalid_password_test() ->
 
 
 connect_with_ssl_test() ->
-    lists:foreach(fun application:start/1, ?ssl_apps),
+    start_ssl_app(),
     with_connection(
       fun(C) ->
               {ok, _Cols, [{true}]} = pgsql:equery(C, "select ssl_is_used()")
@@ -59,7 +57,7 @@ connect_with_ssl_test() ->
       [{ssl, true}]).
 
 connect_with_client_cert_test() ->
-    lists:foreach(fun application:start/1, ?ssl_apps),
+    start_ssl_app(),
     Dir = filename:join(filename:dirname(code:which(pgsql_tests)), "../test_data"),
     File = fun(Name) -> filename:join(Dir, Name) end,
     {ok, Pem} = file:read_file(File("epgsql.crt")),
@@ -266,7 +264,7 @@ execute_error_test() ->
           {ok, S} = pgsql:parse(C, "insert into test_table1 (id, value) values ($1, $2)"),
           ok = pgsql:bind(C, S, [1, <<"foo">>]),
           {error, #error{code = <<"23505">>}} = pgsql:execute(C, S, 0),
-          {error, sync_required} = pgsql:bind(C, S, [3, <<"quux">>]),
+          ok = pgsql:bind(C, S, [3, <<"quux">>]),
           ok = pgsql:sync(C),
           ok = pgsql:bind(C, S, [3, <<"quux">>]),
           {ok, _} = pgsql:execute(C, S, 0),
@@ -420,6 +418,16 @@ date_time_type_test() ->
                          [{{0,0,0.0},0,-178000000 * 12}, {{0,0,0.0},0,178000000 * 12}])
       end).
 
+range_type_test() ->
+    with_min_version(
+      9.2,
+      fun(_C) ->
+          check_type(int4range, "int4range(10, 20)", {10, 20},
+                     [{1, 58}, {-1, 12}, {-985521, 5412687}, {minus_infinity, 0},
+                      {984655, plus_infinity}, {minus_infinity, plus_infinity}])
+      end,
+      []).
+
 misc_type_test() ->
     check_type(bool, "true", true, [true, false]),
     check_type(bytea, "E'\001\002'", <<1,2>>, [<<>>, <<0,128,255>>]).
@@ -446,7 +454,10 @@ array_type_test() ->
           Select(int8,   [[[[1, 2]], [[3, 4]]]]),
           Select(text,   [<<"one">>, <<"two>">>]),
           Select(float4, [0.0, 1.0, 0.123]),
-          Select(float8, [0.0, 1.0, 0.123])
+          Select(float8, [0.0, 1.0, 0.123]),
+          Select(uuid,   [<<"80910cc0-f7a5-45a6-9528-22d335b03e05">>,
+                          <<"6eb989e8-1827-4f71-8d59-a8269388182b">>,
+                          <<"b5027485-2eaf-4cde-a3cb-bd372a75c0fb">>])
       end).
 
 text_format_test() ->
@@ -572,7 +583,7 @@ listen_notify_payload_test() ->
       [{async, self()}]).
 
 application_test() ->
-    lists:foreach(fun application:start/1, ?ssl_apps),
+    start_ssl_app(),
     ok = application:start(epgsql).
 
 %% -- run all tests --
@@ -580,9 +591,25 @@ application_test() ->
 run_tests() ->
     Files = filelib:wildcard("test_ebin/*tests.beam"),
     Mods = [list_to_atom(filename:basename(F, ".beam")) || F <- Files],
-    eunit:test(Mods, []).
+    ok = eunit:test(Mods, []).
 
 %% -- internal functions --
+
+start_ssl_app() ->
+    start_app_with_deps(ssl).
+
+start_app_with_deps(App) when is_atom(App) ->
+    case application:start(App) of
+        ok ->
+            ok;
+        {error, {not_started, Dep}} ->
+            start_app_with_deps(Dep),
+            start_app_with_deps(App);
+        {error, {already_started, App}} ->
+            ok;
+        Error ->
+            erlang:error({couldnt_start_app, App, Error})
+    end.
 
 connect_only(Args) ->
     TestOpts = [{port, ?port}],
@@ -642,7 +669,8 @@ check_type(Type, In, Out, Values, Column) ->
     with_connection(
       fun(C) ->
               Select = io_lib:format("select ~s::~w", [In, Type]),
-              {ok, [#column{type = Type}], [{Out}]} = pgsql:equery(C, Select),
+              {ok, [#column{type = Type}], [{Actual}]} = pgsql:equery(C, Select),
+              ?assertEqual(Out, Actual),
               Sql = io_lib:format("insert into test_table2 (~s) values ($1) returning ~s", [Column, Column]),
               {ok, #statement{columns = [#column{type = Type}]} = S} = pgsql:parse(C, Sql),
               Insert = fun(V) ->

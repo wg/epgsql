@@ -27,17 +27,19 @@ release: app
 
 clean:
 	@rm -f ebin/*.beam
+	@rm -f test_ebin/*.beam
 	@rm -f ebin/$(NAME).app
 	@rm -rf $(NAME)-$(VERSION) $(NAME)-*.tar.gz
 
-test: $(TESTS:test_src/%.erl=test_ebin/%.beam) compile
-	@dialyzer -n --src -c src
+test: $(TEST_SETUP_WITNESS) compile_tests
 	$(ERL) -pa ebin/ -pa test_ebin/ -noshell -s pgsql_tests run_tests -s init stop
+
+compile_tests: $(TESTS:test_src/%.erl=test_ebin/%.beam) compile
 
 # ------------------------------------------------------------------------
 
 .SUFFIXES: .erl .beam
-.PHONY:    app compile clean test
+.PHONY:    app compile compile_tests clean test
 
 ebin/%.beam : src/%.erl
 	$(ERLC) $(ERLC_FLAGS) -o $(dir $@) $<

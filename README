@@ -142,3 +142,12 @@ Erlang PostgreSQL Database Client
       Connection  - connection the notice occured on
       Error       - an #error{} record, see pgsql.hrl
 
+* Contributing and dev workflow
+
+  epgsql requires a rather specific configuration for the test suite to pass;
+  to make it easier to run it, we've integrated epgsql with Test-Kitchen
+  (https://github.com/test-kitchen/test-kitchen), which can be easily installed
+  as part of Chef-DK (http://www.getchef.com/downloads/chef-dk/).
+
+  Then just cd to the test_kitchen directory, and run `kitchen verify` to run
+  the test suite.

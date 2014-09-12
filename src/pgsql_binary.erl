@@ -26,6 +26,7 @@ encode(interval = Type, B)                  -> ?datetime:encode(Type, B);
 encode(bytea, B) when is_binary(B)          -> <<(byte_size(B)):?int32, B/binary>>;
 encode(text, B) when is_binary(B)           -> <<(byte_size(B)):?int32, B/binary>>;
 encode(varchar, B) when is_binary(B)        -> <<(byte_size(B)):?int32, B/binary>>;
+encode(uuid, B) when is_binary(B)           -> encode_uuid(B);
 encode(boolarray, L) when is_list(L)        -> encode_array(bool, L);
 encode(int2array, L) when is_list(L)        -> encode_array(int2, L);
 encode(int4array, L) when is_list(L)        -> encode_array(int4, L);
@@ -34,6 +35,9 @@ encode(float4array, L) when is_list(L)      -> encode_array(float4, L);
 encode(float8array, L) when is_list(L)      -> encode_array(float8, L);
 encode(chararray, L) when is_list(L)        -> encode_array(bpchar, L);
 encode(textarray, L) when is_list(L)        -> encode_array(text, L);
+encode(uuidarray, L) when is_list(L)        -> encode_array(uuid, L);
+encode(varchararray, L) when is_list(L)     -> encode_array(varchar, L);
+encode(int4range, R) when is_tuple(R)       -> encode_int4range(R);
 encode(Type, L) when is_list(L)             -> encode(Type, list_to_binary(L));
 encode(_Type, _Value)                       -> {error, unsupported}.
 
@@ -52,6 +56,7 @@ decode(date = Type, B)                      -> ?datetime:decode(Type, B);
 decode(timestamp = Type, B)                 -> ?datetime:decode(Type, B);
 decode(timestamptz = Type, B)               -> ?datetime:decode(Type, B);
 decode(interval = Type, B)                  -> ?datetime:decode(Type, B);
+decode(uuid, B)                             -> decode_uuid(B);
 decode(boolarray, B)                        -> decode_array(B);
 decode(int2array, B)                        -> decode_array(B);
 decode(int4array, B)                        -> decode_array(B);
@@ -60,6 +65,9 @@ decode(float4array, B)                      -> decode_array(B);
 decode(float8array, B)                      -> decode_array(B);
 decode(chararray, B)                        -> decode_array(B);
 decode(textarray, B)                        -> decode_array(B);
+decode(uuidarray, B)                        -> decode_array(B);
+decode(varchararray, B)                     -> decode_array(B);
+decode(int4range, B)                        -> decode_int4range(B);
 decode(_Other, Bin)                         -> Bin.
 
 encode_array(Type, A) ->
@@ -113,6 +121,47 @@ decode_record(<<Type:?int32, Len:?int32, Value:Len/binary, Rest/binary>>, Acc) -
     Value2 = decode(pgsql_types:oid2type(Type), Value),
     decode_record(Rest, [Value2 | Acc]).
 
+%% @doc encode a UUID.  This accepts UUIDs as lists or binaries in either form of:
+%%   <<"80910cc0-f7a5-45a6-9528-22d335b03e05">>
+%% or
+%%   <<"80910cc0f7a545a6952822d335b03e05">>
+encode_uuid(U) when is_binary(U) ->
+    encode_uuid(binary_to_list(U));
+encode_uuid(U) ->
+    Hex = lists:filter(fun(Elem) -> Elem /= $- end, U),
+    {ok, [Int], _} = io_lib:fread("~16u", Hex),
+    <<16:?int32,Int:128>>.
+
+%% @doc decode a UUID to the format:
+%%   <<"80910cc0-f7a5-45a6-9528-22d335b03e05">>
+decode_uuid(<<U0:32, U1:16, U2:16, U3:16, U4:48>>) ->
+    erlang:iolist_to_binary(io_lib:format("~8.16.0b-~4.16.0b-~4.16.0b-~4.16.0b-~12.16.0b",
+                                          [U0, U1, U2, U3, U4])).
+
+%% @doc encode an int4range
+encode_int4range({minus_infinity, plus_infinity}) ->
+    <<1:?int32, 24:1/big-signed-unit:8>>;
+encode_int4range({From, plus_infinity}) ->
+    FromInt = to_int(From),
+    <<9:?int32, 18:1/big-signed-unit:8, 4:?int32, FromInt:?int32>>;
+encode_int4range({minus_infinity, To}) ->
+    ToInt = to_int(To),
+    <<9:?int32, 8:1/big-signed-unit:8, 4:?int32, ToInt:?int32>>;
+encode_int4range({From, To}) ->
+    FromInt = to_int(From),
+    ToInt = to_int(To),
+    <<17:?int32, 2:1/big-signed-unit:8, 4:?int32, FromInt:?int32, 4:?int32, ToInt:?int32>>.
+
+to_int(N) when is_integer(N) -> N;
+to_int(S) when is_list(S) -> erlang:list_to_integer(S);
+to_int(B) when is_binary(B) -> erlang:binary_to_integer(B).
+
+%% @doc decode an int4range
+decode_int4range(<<2:1/big-signed-unit:8, 4:?int32, From:?int32, 4:?int32, To:?int32>>) -> {From, To};
+decode_int4range(<<8:1/big-signed-unit:8, 4:?int32, To:?int32>>) -> {minus_infinity, To};
+decode_int4range(<<18:1/big-signed-unit:8, 4:?int32, From:?int32>>) -> {From, plus_infinity};
+decode_int4range(<<24:1/big-signed-unit:8>>) -> {minus_infinity, plus_infinity}.
+
 supports(bool)    -> true;
 supports(bpchar)  -> true;
 supports(int2)    -> true;
@@ -130,6 +179,7 @@ supports(timetz)  -> true;
 supports(timestamp)   -> true;
 supports(timestamptz) -> true;
 supports(interval)    -> true;
+supports(uuid)        -> true;
 supports(boolarray)   -> true;
 supports(int2array)   -> true;
 supports(int4array)   -> true;
@@ -138,4 +188,7 @@ supports(float4array) -> true;
 supports(float8array) -> true;
 supports(chararray)   -> true;
 supports(textarray)   -> true;
+supports(uuidarray)   -> true;
+supports(varchararray) -> true;
+supports(int4range) -> true;
 supports(_Type)       -> false.

@@ -1,0 +1,46 @@
+DEPENDENCIES
+  apt
+  epgsql-test-setup
+    path: cookbooks/epgsql-test-setup
+  erlang
+  git
+  postgresql
+
+GRAPH
+  apt (2.5.3)
+  build-essential (2.0.6)
+  chef-sugar (2.2.0)
+  chef_handler (1.1.6)
+  dmg (2.2.0)
+  epgsql-test-setup (0.1.0)
+    postgresql (>= 0.0.0)
+  erlang (1.5.6)
+    apt (>= 1.7.0)
+    build-essential (>= 0.0.0)
+    yum (~> 3.0)
+    yum-epel (>= 0.0.0)
+    yum-erlang_solutions (>= 0.0.0)
+  git (4.0.2)
+    build-essential (>= 0.0.0)
+    dmg (>= 0.0.0)
+    runit (>= 1.0.0)
+    windows (>= 0.0.0)
+    yum (~> 3.0)
+    yum-epel (>= 0.0.0)
+  openssl (2.0.0)
+    chef-sugar (>= 0.0.0)
+  postgresql (3.4.2)
+    apt (>= 1.9.0)
+    build-essential (>= 0.0.0)
+    openssl (>= 0.0.0)
+  runit (1.5.10)
+    build-essential (>= 0.0.0)
+    yum (~> 3.0)
+    yum-epel (>= 0.0.0)
+  windows (1.34.2)
+    chef_handler (>= 0.0.0)
+  yum (3.2.4)
+  yum-epel (0.4.0)
+    yum (~> 3.0)
+  yum-erlang_solutions (0.2.0)
+    yum (~> 3.0)

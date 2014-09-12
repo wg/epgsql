@@ -1,4 +1,8 @@
 *.beam
 *.boot
 *.script
-ebin/*.app
+.DS_Store
+
+/.eunit/
+/ebin/*.app
+/test_kitchen/.kitchen/

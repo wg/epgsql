@@ -1,0 +1,88 @@
+<%
+repo_root = File.expand_path '../..', __FILE__
+
+# a helper function to parse a .gitignore file into a list of paths to exclude from the sync
+def parse_gitignore_to_list file_directory
+    lines = File.read(File.join(file_directory, '.gitignore')).split("\n")
+    # strip comments, empty lines, and lines starting with a bang
+    # (there's no way to translate gitignore bangs into an rsync exclude param)
+    lines.reject! { |line| line.match /^\s*(?:[!#]|$)/ }
+    # and strip leading slashes as they don't mean the same to the sync and to git
+    lines.map { |line| line.gsub /^\/+/, '' }
+end
+%>
+---
+driver:
+  name: vagrant
+  customize:
+    memory: 4096
+    cpus: 4
+
+provisioner:
+  name: chef_solo
+
+platforms:
+  - name: ubuntu-14.04
+
+suites:
+  - name: epgsql
+    driver:
+      synced_folders:
+        - ['<%= repo_root %>', '/root/epgsql', 'type: "rsync", rsync__exclude: <%= parse_gitignore_to_list repo_root %>']
+    run_list:
+      - 'apt'
+      - 'git'
+      # the ordering is important here...
+      - 'postgresql::server_debian'
+      - 'epgsql-test-setup::install-ssl-cert'
+      - 'postgresql::contrib'
+      - 'epgsql-test-setup::load-test-data'
+      - 'erlang'
+    attributes:
+      postgresql:
+        password:
+          postgres: 'sesame'
+        config:
+          # let's make pgsql log pretty heavily, makes debugging easier
+          logging_collector: true
+          log_directory: 'pg_log'
+          log_filename: 'postgres-%a.log'
+          log_statement: 'all'
+          log_min_error_statement: 'debug1'
+          # and that's needed for the SSL tests
+          ssl_ca_file: 'root.crt'
+        pg_hba:
+          - type: 'host'
+            db: 'all'
+            user: 'postgres'
+            addr: '127.0.0.1/32'
+            method: 'trust'
+          # those 4 are required by the tests
+          # (see https://github.com/opscode/epgsql/blob/6dd2d2638fee7cb5fe3f81f1293b2b96ef2c5d82/test_data/test_schema.sql#L6-L12)
+          - type: 'host'
+            db: 'epgsql_test_db1'
+            user: 'epgsql_test'
+            addr: '127.0.0.1/32'
+            method: 'trust'
+          - type: 'host'
+            db: 'epgsql_test_db1'
+            user: 'epgsql_test_md5'
+            addr: '127.0.0.1/32'
+            method: 'md5'
+          - type: 'host'
+            db: 'epgsql_test_db1'
+            user: 'epgsql_test_cleartext'
+            addr: '127.0.0.1/32'
+            method: 'password'
+          - type: 'hostssl'
+            db: 'epgsql_test_db1'
+            user: 'epgsql_test_cert'
+            addr: '127.0.0.1/32'
+            method: 'cert'
+        contrib:
+          extensions:
+            - 'sslinfo'
+      erlang:
+        install_method: 'esl'
+        esl:
+          version: '1:17.1'

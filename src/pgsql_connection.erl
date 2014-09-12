@@ -14,12 +14,15 @@
 
 -export([startup/3, auth/2, initializing/2, ready/2, ready/3]).
 -export([querying/2, parsing/2, binding/2, describing/2]).
--export([executing/2, closing/2, synchronizing/2, timeout/2]).
--export([aborted/3]).
+-export([executing/2, closing/2, synchronizing/2, synchronizing/3]).
+-export([timeout/2]).
 
 -include("pgsql.hrl").
 
 -record(state, {
+          prev_state,
+          prev_events = [],
+          sql,
           reader,
           sock,
           timeout,
@@ -27,6 +30,8 @@
           reply,
           reply_to,
           async,
+          autosync=false,
+          callers=[],
           backend,
           statement,
           txstatus}).
@@ -46,31 +51,31 @@ connect(C, Host, Username, Password, Opts) ->
     gen_fsm:sync_send_event(C, {connect, Host, Username, Password, Opts}, infinity).
 
 get_parameter(C, Name) ->
-    gen_fsm:sync_send_event(C, {get_parameter, to_binary(Name)}).
+    sync_send_event(C, {get_parameter, to_binary(Name)}, infinity).
 
 squery(C, Sql) ->
-    gen_fsm:sync_send_event(C, {squery, Sql}, infinity).
+    sync_send_event(C, {squery, Sql}, infinity).
 
 equery(C, Statement, Parameters) ->
-    gen_fsm:sync_send_event(C, {equery, Statement, Parameters}, infinity).
+    sync_send_event(C, {equery, Statement, Parameters}, infinity).
 
 parse(C, Name, Sql, Types) ->
-    gen_fsm:sync_send_event(C, {parse, Name, Sql, Types}, infinity).
+    sync_send_event(C, {parse, Name, Sql, Types}, infinity).
 
 bind(C, Statement, PortalName, Parameters) ->
-    gen_fsm:sync_send_event(C, {bind, Statement, PortalName, Parameters}, infinity).
+    sync_send_event(C, {bind, Statement, PortalName, Parameters}, infinity).
 
 execute(C, Statement, PortalName, MaxRows) ->
-    gen_fsm:sync_send_event(C, {execute, Statement, PortalName, MaxRows}, infinity).
+    sync_send_event(C, {execute, Statement, PortalName, MaxRows}, infinity).
 
 describe(C, Type, Name) ->
-    gen_fsm:sync_send_event(C, {describe, Type, Name}, infinity).
+    sync_send_event(C, {describe, Type, Name}, infinity).
 
 close(C, Type, Name) ->
-    gen_fsm:sync_send_event(C, {close, Type, Name}, infinity).
+    sync_send_event(C, {close, Type, Name}, infinity).
 
 sync(C) ->
-    gen_fsm:sync_send_event(C, sync, infinity).
+    sync_send_event(C, sync, infinity).
 
 %% -- gen_fsm implementation --
 
@@ -218,7 +223,7 @@ ready(_Msg, State) ->
 ready({squery, Sql}, From, State) ->
     #state{timeout = Timeout} = State,
     send(State, $Q, [Sql, 0]),
-    State2 = State#state{statement = #statement{}, reply_to = From},
+    State2 = State#state{statement = #statement{}, reply_to = From, sql = Sql},
     {reply, ok, querying, State2, Timeout};
 
 %% execute extended query
@@ -295,6 +300,12 @@ ready(sync, From, State) ->
     State2 = State#state{reply = ok, reply_to = From},
     {next_state, synchronizing, State2, Timeout}.
 
+%% If a caller sends a request while the connection is autosyncing
+%% store the caller's pid and tell them to wait.
+synchronizing(_Msg, {Pid, _Tag}, #state{callers = Callers, autosync = true} = State) ->
+    {reply, {wait, synchronizing}, synchronizing, State#state{callers = [Pid|Callers]}}.
+
+
 %% BindComplete
 querying({$2, <<>>}, State) ->
     #state{timeout = Timeout, statement = #statement{columns = Columns}} = State,
@@ -337,7 +348,7 @@ querying({$I, _Bin}, State) ->
 querying(timeout, State) ->
     #state{sock = Sock, timeout = Timeout, backend = {Pid, Key}} = State,
     pgsql_sock:cancel(Sock, Pid, Key),
-    {next_state, timeout, State, Timeout};
+    {next_state, timeout, State#state{prev_state = querying}, Timeout};
 
 %% ErrorResponse
 querying({error, E}, State) ->
@@ -464,13 +475,17 @@ executing(timeout, State) ->
     #state{sock = Sock, timeout = Timeout, backend = {Pid, Key}} = State,
     pgsql_sock:cancel(Sock, Pid, Key),
     send(State, $S, []),
-    {next_state, timeout, State, Timeout};
+    {next_state, timeout, State#state{prev_state = executing}, Timeout};
 
 %% ErrorResponse
 executing({error, E}, State) ->
     #state{timeout = Timeout} = State,
     notify(State, {error, E}),
-    {next_state, aborted, State, Timeout}.
+    %% Send sync command to database and transition immediately
+    %% to synchronizing state. This automatically handles the
+    %% case where the driver needs to checkpoint after an error
+    send(State, $S, []),
+    {next_state, synchronizing, State#state{autosync = true}, Timeout}.
 
 %% CloseComplete
 closing({$3, <<>>}, State) ->
@@ -500,9 +515,8 @@ synchronizing(timeout, State) ->
 
 %% ReadyForQuery
 synchronizing({$Z, <<Status:8>>}, State) ->
-    #state{reply = Reply, reply_to = Reply_To} = State,
-    gen_fsm:reply(Reply_To, Reply),
-    {next_state, ready, State#state{reply = undefined, txstatus = Status}}.
+    State1 = maybe_reply(State),
+    {next_state, ready, State1#state{reply = undefined, txstatus = Status, autosync = false}}.
 
 timeout({$Z, <<Status:8>>}, State) ->
     notify(State, timeout),
@@ -512,19 +526,9 @@ timeout(timeout, State) ->
     {stop, timeout, State};
 
 %% ignore events that occur after timeout
-timeout(_Event, State) ->
-    #state{timeout = Timeout} = State,
-    {next_state, timeout, State, Timeout}.
-
-aborted(sync, From, State) ->
-    #state{timeout = Timeout} = State,
-    send(State, $S, []),
-    State2 = State#state{reply = ok, reply_to = From},
-    {next_state, synchronizing, State2, Timeout};
-
-aborted(_Msg, _From, State) ->
-    #state{timeout = Timeout} = State,
-    {reply, {error, sync_required}, aborted, State, Timeout}.
+timeout(Event, State) ->
+    #state{timeout = Timeout, prev_state = PrevState, prev_events = PrevEvents} = State,
+    {next_state, timeout, State#state{prev_state = PrevState, prev_events = [Event | PrevEvents]}, Timeout}.
 
 %% -- internal functions --
 
@@ -659,3 +663,25 @@ hex(Bin) ->
 
 send(#state{sock = Sock}, Type, Data) ->
     pgsql_sock:send(Sock, Type, Data).
+
+%% If autosyncing, tell callers we are done so they can
+%% retry their request
+maybe_reply(#state{autosync = true, callers = Callers} = State) ->
+    [Caller ! {ok, proceed} || Caller <- Callers],
+    State#state{callers = []};
+%% If not autosyncing, send FSM reply as usual
+maybe_reply(#state{reply = Reply, reply_to = Reply_To, autosync = false} = State) ->
+    gen_fsm:reply(Reply_To, Reply),
+    State.
+
+%% send event and handle connection autosync
+sync_send_event(C, Event, Timeout) ->
+    case gen_fsm:sync_send_event(C, Event, Timeout) of
+        {wait, synchronizing} ->
+            receive
+                {ok, proceed} ->
+                    sync_send_event(C, Event, Timeout)
+            end;
+        R ->
+            R
+    end.
