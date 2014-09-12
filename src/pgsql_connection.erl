@@ -20,6 +20,9 @@
 -include("pgsql.hrl").
 
 -record(state, {
+          prev_state,
+          prev_events = [],
+          sql,
           reader,
           sock,
           timeout,
@@ -220,7 +223,7 @@ ready(_Msg, State) ->
 ready({squery, Sql}, From, State) ->
     #state{timeout = Timeout} = State,
     send(State, $Q, [Sql, 0]),
-    State2 = State#state{statement = #statement{}, reply_to = From},
+    State2 = State#state{statement = #statement{}, reply_to = From, sql = Sql},
     {reply, ok, querying, State2, Timeout};
 
 %% execute extended query
@@ -345,7 +348,7 @@ querying({$I, _Bin}, State) ->
 querying(timeout, State) ->
     #state{sock = Sock, timeout = Timeout, backend = {Pid, Key}} = State,
     pgsql_sock:cancel(Sock, Pid, Key),
-    {next_state, timeout, State, Timeout};
+    {next_state, timeout, State#state{prev_state = querying}, Timeout};
 
 %% ErrorResponse
 querying({error, E}, State) ->
@@ -472,7 +475,7 @@ executing(timeout, State) ->
     #state{sock = Sock, timeout = Timeout, backend = {Pid, Key}} = State,
     pgsql_sock:cancel(Sock, Pid, Key),
     send(State, $S, []),
-    {next_state, timeout, State, Timeout};
+    {next_state, timeout, State#state{prev_state = executing}, Timeout};
 
 %% ErrorResponse
 executing({error, E}, State) ->
@@ -523,9 +526,9 @@ timeout(timeout, State) ->
     {stop, timeout, State};
 
 %% ignore events that occur after timeout
-timeout(_Event, State) ->
-    #state{timeout = Timeout} = State,
-    {next_state, timeout, State, Timeout}.
+timeout(Event, State) ->
+    #state{timeout = Timeout, prev_state = PrevState, prev_events = PrevEvents} = State,
+    {next_state, timeout, State#state{prev_state = PrevState, prev_events = [Event | PrevEvents]}, Timeout}.
 
 %% -- internal functions --
 
