@@ -1,4 +1,4 @@
-NAME		:= epgsql
+NAME		:= epgsql_wg
 VERSION		:= $(shell git describe --always --tags)
 
 ERL  		:= erl
@@ -15,7 +15,7 @@ RELEASE		:= $(NAME)-$(VERSION).tar.gz
 APPDIR		:= $(NAME)-$(VERSION)
 BEAMS		:= $(SRC:src/%.erl=ebin/%.beam) 
 
-compile: $(BEAMS) ebin/$(NAME).app
+compile: ebin/ $(BEAMS) ebin/$(NAME).app
 
 app: compile
 	@mkdir -p $(APPDIR)/ebin
@@ -38,6 +38,9 @@ test: $(TESTS:test_src/%.erl=test_ebin/%.beam) compile
 
 .SUFFIXES: .erl .beam
 .PHONY:    app compile clean test
+
+ebin/ :
+	@mkdir -p ebin/
 
 ebin/%.beam : src/%.erl
 	$(ERLC) $(ERLC_FLAGS) -o $(dir $@) $<

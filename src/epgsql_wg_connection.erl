@@ -1,6 +1,6 @@
 %%% Copyright (C) 2008 - Will Glozer.  All rights reserved.
 
--module(pgsql_connection).
+-module(epgsql_wg_connection).
 
 -behavior(gen_fsm).
 
@@ -17,7 +17,7 @@
 -export([executing/2, closing/2, synchronizing/2, timeout/2]).
 -export([aborted/3]).
 
--include("pgsql.hrl").
+-include("epgsql_wg.hrl").
 
 -record(state, {
           reader,
@@ -120,7 +120,7 @@ code_change(_Old_Vsn, State_Name, State, _Extra) ->
 startup({connect, Host, Username, Password, Opts}, From, State) ->
     Timeout = proplists:get_value(timeout, Opts, 5000),
     Async   = proplists:get_value(async, Opts, undefined),
-    case pgsql_sock:start_link(self(), Host, Username, Opts) of
+    case epgsql_wg_sock:start_link(self(), Host, Username, Opts) of
         {ok, Sock} ->
             put(username, Username),
             put(password, Password),
@@ -154,13 +154,13 @@ auth({$R, <<5:?int32, Salt:4/binary>>}, State) ->
     {next_state, auth, State, Timeout};
 
 auth({$R, <<M:?int32, _/binary>>}, State) ->
-    case M of
-        2 -> Method = kerberosV5;
-        4 -> Method = crypt;
-        6 -> Method = scm;
-        7 -> Method = gss;
-        8 -> Method = sspi;
-        _ -> Method = unknown
+    Method = case M of
+        2 -> kerberosV5;
+        4 -> crypt;
+        6 -> scm;
+        7 -> gss;
+        8 -> sspi;
+        _ -> unknown
     end,
     Error = {error, {unsupported_auth_method, Method}},
     gen_fsm:reply(State#state.reply_to, Error),
@@ -168,10 +168,10 @@ auth({$R, <<M:?int32, _/binary>>}, State) ->
 
 %% ErrorResponse
 auth({error, E}, State) ->
-    case E#error.code of
-        <<"28000">> -> Why = invalid_authorization_specification;
-        <<"28P01">> -> Why = invalid_password;
-        Any         -> Why = Any
+    Why = case E#epgsql_wg_error.code of
+        <<"28000">> -> invalid_authorization_specification;
+        <<"28P01">> -> invalid_password;
+        Any         -> Any
     end,
     gen_fsm:reply(State#state.reply_to, {error, Why}),
     {stop, normal, State};
@@ -188,9 +188,9 @@ initializing({$K, <<Pid:?int32, Key:?int32>>}, State) ->
 
 %% ErrorResponse
 initializing({error, E}, State) ->
-    case E#error.code of
-        <<"28000">> -> Why = invalid_authorization_specification;
-        Any         -> Why = Any
+    Why = case E#epgsql_wg_error.code of
+        <<"28000">> -> invalid_authorization_specification;
+        Any         -> Any
     end,
     gen_fsm:reply(State#state.reply_to, {error, Why}),
     {stop, normal, State};
@@ -205,8 +205,8 @@ initializing({$Z, <<Status:8>>}, State) ->
     erase(username),
     erase(password),
     case lists:keysearch(<<"integer_datetimes">>, 1, Parameters) of
-        {value, {_, <<"on">>}}  -> put(datetime_mod, pgsql_idatetime);
-        {value, {_, <<"off">>}} -> put(datetime_mod, pgsql_fdatetime)
+        {value, {_, <<"on">>}}  -> put(datetime_mod, epgsql_wg_idatetime);
+        {value, {_, <<"off">>}} -> put(datetime_mod, epgsql_wg_fdatetime)
     end,
     gen_fsm:reply(Reply_To, {ok, self()}),
     {next_state, ready, State#state{txstatus = Status}}.
@@ -218,13 +218,13 @@ ready(_Msg, State) ->
 ready({squery, Sql}, From, State) ->
     #state{timeout = Timeout} = State,
     send(State, $Q, [Sql, 0]),
-    State2 = State#state{statement = #statement{}, reply_to = From},
+    State2 = State#state{statement = #epgsql_wg_statement{}, reply_to = From},
     {reply, ok, querying, State2, Timeout};
 
 %% execute extended query
 ready({equery, Statement, Parameters}, From, State) ->
     #state{timeout = Timeout} = State,
-    #statement{name = StatementName, columns = Columns} = Statement,
+    #epgsql_wg_statement{name = StatementName, columns = Columns} = Statement,
     Bin1 = encode_parameters(Parameters),
     Bin2 = encode_formats(Columns),
     send(State, $B, ["", 0, StatementName, 0, Bin1, Bin2]),
@@ -235,9 +235,9 @@ ready({equery, Statement, Parameters}, From, State) ->
     {reply, ok, querying, State2, Timeout};
 
 ready({get_parameter, Name}, _From, State) ->
-    case lists:keysearch(Name, 1, State#state.parameters) of
-        {value, {Name, Value}} -> Value;
-        false                  -> Value = undefined
+    Value = case lists:keysearch(Name, 1, State#state.parameters) of
+        {value, {Name, V}}     -> V;
+        false                  -> undefined
     end,
     {reply, {ok, Value}, ready, State};
 
@@ -247,13 +247,13 @@ ready({parse, Name, Sql, Types}, From, State) ->
     send(State, $P, [Name, 0, Sql, 0, Bin]),
     send(State, $D, [$S, Name, 0]),
     send(State, $H, []),
-    S = #statement{name = Name},
+    S = #epgsql_wg_statement{name = Name},
     State2 = State#state{statement = S, reply_to = From},
     {next_state, parsing, State2, Timeout};
 
 ready({bind, Statement, PortalName, Parameters}, From, State) ->
     #state{timeout = Timeout} = State,
-    #statement{name = StatementName, columns = Columns, types = Types} = Statement,
+    #epgsql_wg_statement{name = StatementName, columns = Columns, types = Types} = Statement,
     Typed_Parameters = lists:zip(Types, Parameters),
     Bin1 = encode_parameters(Typed_Parameters),
     Bin2 = encode_formats(Columns),
@@ -271,9 +271,9 @@ ready({execute, Statement, PortalName, MaxRows}, From, State) ->
 
 ready({describe, Type, Name}, From, State) ->
     #state{timeout = Timeout} = State,
-    case Type of
-        statement -> Type2 = $S;
-        portal    -> Type2 = $P
+    Type2 = case Type of
+        statement -> $S;
+        portal    -> $P
     end,
     send(State, $D, [Type2, Name, 0]),
     send(State, $H, []),
@@ -281,9 +281,9 @@ ready({describe, Type, Name}, From, State) ->
 
 ready({close, Type, Name}, From, State) ->
     #state{timeout = Timeout} = State,
-    case Type of
-        statement -> Type2 = $S;
-        portal    -> Type2 = $P
+    Type2 = case Type of
+        statement -> $S;
+        portal    -> $P
     end,
     send(State, $C, [Type2, Name, 0]),
     send(State, $H, []),
@@ -297,7 +297,7 @@ ready(sync, From, State) ->
 
 %% BindComplete
 querying({$2, <<>>}, State) ->
-    #state{timeout = Timeout, statement = #statement{columns = Columns}} = State,
+    #state{timeout = Timeout, statement = #epgsql_wg_statement{columns = Columns}} = State,
     notify(State, {columns, Columns}),
     {next_state, querying, State, Timeout};
 
@@ -310,13 +310,13 @@ querying({$3, <<>>}, State) ->
 querying({$T, <<Count:?int16, Bin/binary>>}, State) ->
     #state{timeout = Timeout} = State,
     Columns = decode_columns(Count, Bin),
-    S2 = (State#state.statement)#statement{columns = Columns},
+    S2 = (State#state.statement)#epgsql_wg_statement{columns = Columns},
     notify(State, {columns, Columns}),
     {next_state, querying, State#state{statement = S2}, Timeout};
 
 %% DataRow
 querying({$D, <<_Count:?int16, Bin/binary>>}, State) ->
-    #state{timeout = Timeout, statement = #statement{columns = Columns}} = State,
+    #state{timeout = Timeout, statement = #epgsql_wg_statement{columns = Columns}} = State,
     Data = decode_data(Columns, Bin),
     notify(State, {data, Data}),
     {next_state, querying, State, Timeout};
@@ -336,7 +336,7 @@ querying({$I, _Bin}, State) ->
 
 querying(timeout, State) ->
     #state{sock = Sock, timeout = Timeout, backend = {Pid, Key}} = State,
-    pgsql_sock:cancel(Sock, Pid, Key),
+    epgsql_wg_sock:cancel(Sock, Pid, Key),
     {next_state, timeout, State, Timeout};
 
 %% ErrorResponse
@@ -401,21 +401,21 @@ binding({$Z, <<Status:8>>}, State) ->
 %% ParameterDescription
 describing({$t, <<_Count:?int16, Bin/binary>>}, State) ->
     #state{timeout = Timeout} = State,
-    Types = [pgsql_types:oid2type(Oid) || <<Oid:?int32>> <= Bin],
-    S2 = (State#state.statement)#statement{types = Types},
+    Types = [epgsql_wg_types:oid2type(Oid) || <<Oid:?int32>> <= Bin],
+    S2 = (State#state.statement)#epgsql_wg_statement{types = Types},
     {next_state, describing, State#state{statement = S2}, Timeout};
 
 %% RowDescription
 describing({$T, <<Count:?int16, Bin/binary>>}, State) ->
     Columns = decode_columns(Count, Bin),
-    Columns2 = [C#column{format = format(C#column.type)} || C <- Columns],
-    S2 = (State#state.statement)#statement{columns = Columns2},
+    Columns2 = [C#epgsql_wg_column{format = format(C#epgsql_wg_column.type)} || C <- Columns],
+    S2 = (State#state.statement)#epgsql_wg_statement{columns = Columns2},
     gen_fsm:reply(State#state.reply_to, {ok, S2}),
     {next_state, ready, State};
 
 %% NoData
 describing({$n, <<>>}, State) ->
-    S2 = (State#state.statement)#statement{columns = []},
+    S2 = (State#state.statement)#epgsql_wg_statement{columns = []},
     gen_fsm:reply(State#state.reply_to, {ok, S2}),
     {next_state, ready, State};
 
@@ -440,7 +440,7 @@ describing({$Z, <<Status:8>>}, State) ->
 
 %% DataRow
 executing({$D, <<_Count:?int16, Bin/binary>>}, State) ->
-    #state{timeout = Timeout, statement = #statement{columns = Columns}} = State,
+    #state{timeout = Timeout, statement = #epgsql_wg_statement{columns = Columns}} = State,
     Data = decode_data(Columns, Bin),
     notify(State, {data, Data}),
     {next_state, executing, State, Timeout};
@@ -462,7 +462,7 @@ executing({$I, _Bin}, State) ->
 
 executing(timeout, State) ->
     #state{sock = Sock, timeout = Timeout, backend = {Pid, Key}} = State,
-    pgsql_sock:cancel(Sock, Pid, Key),
+    epgsql_wg_sock:cancel(Sock, Pid, Key),
     send(State, $S, []),
     {next_state, timeout, State, Timeout};
 
@@ -537,9 +537,9 @@ decode_data([], _Bin, Acc) ->
 decode_data([_C | T], <<-1:?int32, Rest/binary>>, Acc) ->
     decode_data(T, Rest, [null | Acc]);
 decode_data([C | T], <<Len:?int32, Value:Len/binary, Rest/binary>>, Acc) ->
-    case C of
-        #column{type = Type, format = 1}   -> Value2 = pgsql_binary:decode(Type, Value);
-        #column{}                          -> Value2 = Value
+    Value2 = case C of
+        #epgsql_wg_column{type = Type, format = 1}   -> epgsql_wg_binary:decode(Type, Value);
+        #epgsql_wg_column{}                          -> Value
     end,
     decode_data(T, Rest, [Value2 | Acc]).
 
@@ -550,12 +550,12 @@ decode_columns(Count, Bin) ->
 decode_columns(0, _Bin, Acc) ->
     lists:reverse(Acc);
 decode_columns(N, Bin, Acc) ->
-    {Name, Rest} = pgsql_sock:decode_string(Bin),
+    {Name, Rest} = epgsql_wg_sock:decode_string(Bin),
     <<_Table_Oid:?int32, _Attrib_Num:?int16, Type_Oid:?int32,
      Size:?int16, Modifier:?int32, Format:?int16, Rest2/binary>> = Rest,
-    Desc = #column{
+    Desc = #epgsql_wg_column{
       name     = Name,
-      type     = pgsql_types:oid2type(Type_Oid),
+      type     = epgsql_wg_types:oid2type(Type_Oid),
       size     = Size,
       modifier = Modifier,
       format   = Format},
@@ -567,14 +567,14 @@ decode_complete(<<"SELECT", _/binary>>) -> select;
 decode_complete(<<"BEGIN", 0>>)         -> 'begin';
 decode_complete(<<"ROLLBACK", 0>>)      -> rollback;
 decode_complete(Bin) ->
-    {Str, _} = pgsql_sock:decode_string(Bin),
+    {Str, _} = epgsql_wg_sock:decode_string(Bin),
     case string:tokens(binary_to_list(Str), " ") of
         ["INSERT", _Oid, Rows] -> {insert, list_to_integer(Rows)};
         ["UPDATE", Rows]       -> {update, list_to_integer(Rows)};
         ["DELETE", Rows]       -> {delete, list_to_integer(Rows)};
         ["MOVE", Rows]         -> {move, list_to_integer(Rows)};
         ["FETCH", Rows]        -> {fetch, list_to_integer(Rows)};
-        [Type | _Rest]         -> pgsql_sock:lower_atom(Type)
+        [Type | _Rest]         -> epgsql_wg_sock:lower_atom(Type)
     end.
 
 %% encode types
@@ -585,9 +585,9 @@ encode_types([], Count, Acc) ->
     <<Count:?int16, Acc/binary>>;
 
 encode_types([Type | T], Count, Acc) ->
-    case Type of
-        undefined -> Oid = 0;
-        _Any      -> Oid = pgsql_types:type2oid(Type)
+    Oid = case Type of
+        undefined -> 0;
+        _Any      -> epgsql_wg_types:type2oid(Type)
     end,
     encode_types(T, Count + 1, <<Acc/binary, Oid:?int32>>).
 
@@ -598,11 +598,11 @@ encode_formats(Columns) ->
 encode_formats([], Count, Acc) ->
     <<Count:?int16, Acc/binary>>;
 
-encode_formats([#column{format = Format} | T], Count, Acc) ->
+encode_formats([#epgsql_wg_column{format = Format} | T], Count, Acc) ->
     encode_formats(T, Count + 1, <<Acc/binary, Format:?int16>>).
 
 format(Type) ->
-    case pgsql_binary:supports(Type) of
+    case epgsql_wg_binary:supports(Type) of
         true  -> 1;
         false -> 0
     end.
@@ -623,7 +623,7 @@ encode_parameters([P | T], Count, Formats, Values) ->
 %% encode parameter
 
 encode_parameter({Type, Value}) ->
-    case pgsql_binary:encode(Type, Value) of
+    case epgsql_wg_binary:encode(Type, Value) of
         Bin when is_binary(Bin) -> {1, Bin};
         {error, unsupported}    -> encode_parameter(Value)
     end;
@@ -640,11 +640,20 @@ encode_list(L) ->
 notify(#state{reply_to = {Pid, _Tag}}, Msg) ->
     Pid ! {pgsql, self(), Msg}.
 
-notify_async(#state{async = Pid}, Msg) ->
-    case is_pid(Pid) of
-        true  -> Pid ! {pgsql, self(), Msg};
-        false -> false
-    end.
+notify_async(#state{async = undefined}, _) ->
+    ok;
+notify_async(#state{async = {via, Module, Name}}, Msg)
+    when is_atom(Module) ->
+    Pid = Module:whereis_name(Name),
+    if
+        is_pid(Pid) ->
+            Pid ! {pgsql, self(), Msg};
+        true ->
+            ok
+    end;
+notify_async(#state{async = Process}, Msg)
+    when is_atom(Process); is_pid(Process) ->
+    Process ! {pgsql, self(), Msg}.
 
 to_binary(B) when is_binary(B) -> B;
 to_binary(L) when is_list(L)   -> list_to_binary(L).
@@ -658,4 +667,4 @@ hex(Bin) ->
 %% send data to server
 
 send(#state{sock = Sock}, Type, Data) ->
-    pgsql_sock:send(Sock, Type, Data).
+    epgsql_wg_sock:send(Sock, Type, Data).
