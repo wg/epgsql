@@ -38,8 +38,9 @@ encode(text, B) when is_binary(B)           -> <<(byte_size(B)):?int32, B/binary
 encode(varchar, B) when is_binary(B)        -> <<(byte_size(B)):?int32, B/binary>>;
 encode(inet, B)                             -> encode(bytea, encode_net(B));
 encode(cidr, B)                             -> encode(bytea, encode_net(B));
-encode(json, B) when is_binary(B)        -> <<(byte_size(B)):?int32, B/binary>>;
-encode(jsonb, B) when is_binary(B)       -> <<(byte_size(B)):?int32, B/binary>>;
+encode(json, B) when is_binary(B)           -> <<(byte_size(B)):?int32, B/binary>>;
+encode(json, B) when is_list(B)             -> encode(json, iolist_to_binary(mochijson2:encode(B)));
+encode(jsonb, B) when is_binary(B)          -> <<(byte_size(B)):?int32, B/binary>>;
 encode(boolarray, L) when is_list(L)        -> encode_array(bool, L);
 encode(cidrarray, L) when is_list(L)        -> encode_array(cidr, L);
 encode(inetarray, L) when is_list(L)        -> encode_array(inet, L);
@@ -95,6 +96,7 @@ decode(uuidarray, B)                        -> decode_array(B);
 decode(inet, B)                             -> decode_net(B);
 decode(cidr, B)                             -> decode_net(B);
 decode(uuid, B)                             -> decode_uuid(B);
+decode(json, B)                             -> mochijson2:decode(B, [{format, proplist}]);
 decode(_Other, Bin)                         -> Bin.
 
 encode_array(Type, A) ->
