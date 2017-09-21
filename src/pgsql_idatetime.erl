@@ -24,12 +24,54 @@ decode(timestamp, <<N:?int64>>)                    -> i2timestamp(N);
 decode(timestamptz, <<N:?int64>>)                  -> i2timestamp(N);
 decode(interval, <<N:?int64, D:?int32, M:?int32>>) -> {i2time(N), D, M}.
 
-encode(date, D)         -> <<4:?int32, (date2j(D) - ?postgres_epoc_jdate):?int32>>;
-encode(time, T)         -> <<8:?int32, (time2i(T)):?int64>>;
-encode(timetz, {T, TZ}) -> <<12:?int32, (time2i(T)):?int64, TZ:?int32>>;
-encode(timestamp, TS)   -> <<8:?int32, (timestamp2i(TS)):?int64>>;
-encode(timestamptz, TS) -> <<8:?int32, (timestamp2i(TS)):?int64>>;
-encode(interval, {T, D, M}) -> <<16:?int32, (time2i(T)):?int64, D:?int32, M:?int32>>.
+encode(date, D)
+  when D =:= <<"infinity">>;
+       D =:= "infinity";
+       D =:= 'infinity';
+       D =:= {5881610,7,11} ->
+    <<4:?int32, 127,255,255,255>>;
+encode(date, D)
+  when D =:= <<"-infinity">>;
+       D =:= "-infinity";
+       D =:= '-infinity';
+       D =:= {-5877610,7,-8} ->
+    <<4:?int32, 128,0,0,0>>;
+encode(date, D) ->
+    <<4:?int32, (date2j(D) - ?postgres_epoc_jdate):?int32>>;
+encode(time, T) ->
+    <<8:?int32, (time2i(T)):?int64>>;
+encode(timetz, {T, TZ}) ->
+    <<12:?int32, (time2i(T)):?int64, TZ:?int32>>;
+encode(timestamp, TS)
+  when TS =:= <<"infinity">>;
+       TS =:= "infinity";
+       TS =:= 'infinity';
+       TS =:= {{294277,1,9},{4,0,54.775807}} ->
+    <<8:?int32, 127,255,255,255,255,255,255,255>>;
+encode(timestamp, TS)
+  when TS =:= <<"-infinity">>;
+       TS =:= "-infinity";
+       TS =:= '-infinity';
+       TS =:= {{-290277,12,23},{19,59,5.224192}} ->
+    <<8:?int32, 128,0,0,0,0,0,0,0>>;
+encode(timestamp, TS)   ->
+    <<8:?int32, (timestamp2i(TS)):?int64>>;
+encode(timestamptz, TS)
+  when TS =:= <<"infinity">>;
+       TS =:= "infinity";
+       TS =:= 'infinity';
+       TS =:= {{294277,1,9},{4,0,54.775807}} ->
+    <<8:?int32, 127,255,255,255,255,255,255,255>>;
+encode(timestamptz, TS)
+  when TS =:= <<"-infinity">>;
+       TS =:= "-infinity";
+       TS =:= '-infinity';
+       TS =:= {{-290277,12,23},{19,59,5.224192}} ->
+    <<8:?int32, 128,0,0,0,0,0,0,0>>;
+encode(timestamptz, TS) ->
+    <<8:?int32, (timestamp2i(TS)):?int64>>;
+encode(interval, {T, D, M}) ->
+    <<16:?int32, (time2i(T)):?int64, D:?int32, M:?int32>>.
 
 j2date(N) ->
     J = N + 32044,
@@ -39,10 +81,10 @@ j2date(N) ->
     Q2 = J2 div 1461,
     J3 = J2 - Q2 * 1461,
     Y = J3 * 4 div 1461,
-    case Y of
-        0 -> J4 = ((J3 + 306) rem 366) + 123;
-        _ -> J4 = ((J3 + 305) rem 365) + 123
-    end,
+    J4 = case Y of
+             0 -> ((J3 + 306) rem 366) + 123;
+             _ -> ((J3 + 305) rem 365) + 123
+         end,
     Year = (Y + Q2 * 4) - 4800,
     Q3 = J4 * 2141 div 65536,
     Day = J4 - 7834 * Q3 div 256,
@@ -50,14 +92,12 @@ j2date(N) ->
     {Year, Month, Day}.
 
 date2j({Y, M, D}) ->
-    case M > 2 of
-        true ->
-            M2 = M + 1,
-            Y2 = Y + 4800;
-        false ->
-            M2 = M + 13,
-            Y2 = Y + 4799
-    end,
+    {M2, Y2} = case M > 2 of
+                   true ->
+                       {M + 1, Y + 4800};
+                   false ->
+                       {M + 13, Y + 4799}
+               end,
     C = Y2 div 100,
     J1 = Y2 * 365 - 32167,
     J2 = J1 + (Y2 div 4 - C + C div 4),
