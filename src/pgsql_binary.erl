@@ -10,6 +10,7 @@
 
 -define(int32, 1/big-signed-unit:32).
 -define(datetime, (get(datetime_mod))).
+-define(JSONB_VER, 1).
 
 encode(_Any, null)                          -> <<-1:?int32>>;
 encode(bool, true)                          -> <<1:?int32, 1:1/big-signed-unit:8>>;
@@ -40,7 +41,7 @@ encode(inet, B)                             -> encode(bytea, encode_net(B));
 encode(cidr, B)                             -> encode(bytea, encode_net(B));
 encode(json, B) when is_binary(B)           -> <<(byte_size(B)):?int32, B/binary>>;
 encode(json, B) when is_list(B)             -> encode(json, iolist_to_binary(mochijson2:encode(B)));
-encode(jsonb, B) when is_binary(B)          -> <<(byte_size(B)):?int32, B/binary>>;
+encode(jsonb, B) when is_binary(B)          -> <<(byte_size(B) + 1):?int32, ?JSONB_VER:8, B/binary>>;
 encode(boolarray, L) when is_list(L)        -> encode_array(bool, L);
 encode(cidrarray, L) when is_list(L)        -> encode_array(cidr, L);
 encode(inetarray, L) when is_list(L)        -> encode_array(inet, L);
@@ -54,6 +55,7 @@ encode(varchararray, L) when is_list(L)     -> encode_array(varchar, L);
 encode(textarray, L) when is_list(L)        -> encode_array(text, L);
 encode(recordarray, L) when is_list(L)      -> encode_array(record, L);
 encode(jsonarray, L) when is_list(L)        -> encode_array(json, [case is_list(V) of true -> iolist_to_binary(V); false -> V end || V <- L]);
+encode(jsonbarray, L) when is_list(L)       -> encode_array(jsonb, [case is_list(V) of true -> iolist_to_binary(V); false -> V end || V <- L]);
 encode(uuidarray, L) when is_list(L)        -> encode_array(uuid, L);
 encode(uuid, B) when is_binary(B)           -> encode(bytea, encode_uuid(B));
 encode(Type, L) when is_list(L)             -> encode(Type, list_to_binary(L));
@@ -95,10 +97,12 @@ decode(inetarray, B)                        -> decode_array(B);
 decode(recordarray, B)                      -> decode_array(B);
 decode(uuidarray, B)                        -> decode_array(B);
 decode(jsonarray, B)                        -> decode_array(B);
+decode(jsonbarray, B)                       -> decode_array(B);
 decode(inet, B)                             -> decode_net(B);
 decode(cidr, B)                             -> decode_net(B);
 decode(uuid, B)                             -> decode_uuid(B);
 decode(json, B)                             -> mochijson2:decode(B, [{format, proplist}]);
+decode(jsonb, <<?JSONB_VER:8, B/binary>>)   -> mochijson2:decode(B, [{format, proplist}]);
 decode(_Other, Bin)                         -> Bin.
 
 encode_array(Type, A) ->
@@ -222,6 +226,7 @@ supports(varchar)      -> true;
 supports(record)       -> true;
 supports(date)         -> true;
 supports(json)         -> true;
+supports(jsonb)        -> true;
 supports(time)         -> true;
 supports(timetz)       -> true;
 supports(timestamp)    -> true;
@@ -238,6 +243,7 @@ supports(varchararray) -> true;
 supports(textarray)    -> true;
 supports(recordarray)  -> true;
 supports(jsonarray)    -> true;
+supports(jsonbarray)   -> true;
 supports(inet)         -> true;
 supports(cidr)         -> true;
 supports(point)        -> true;
