@@ -4,5 +4,5 @@
   {modules, [pgsql, pgsql_binary, pgsql_connection, pgsql_fdatetime,
              pgsql_idatetime, pgsql_sock, pgsql_types]},
   {registered, []},
-  {applications, [kernel, stdlib, crypto, ssl, mochiweb, gen_fsm_compat]},
+  {applications, [kernel, stdlib, crypto, ssl, mochij, gen_fsm_compat]},
   {included_applications, []}]}.
