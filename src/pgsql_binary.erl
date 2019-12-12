@@ -40,7 +40,7 @@ encode(varchar, B) when is_binary(B)        -> <<(byte_size(B)):?int32, B/binary
 encode(inet, B)                             -> encode(bytea, encode_net(B));
 encode(cidr, B)                             -> encode(bytea, encode_net(B));
 encode(json, B) when is_binary(B)           -> <<(byte_size(B)):?int32, B/binary>>;
-encode(json, B) when is_list(B)             -> encode(json, iolist_to_binary(mochijson2:encode(B)));
+encode(json, B) when is_list(B)             -> encode(json, iolist_to_binary(mochij2:encode(B)));
 encode(jsonb, B) when is_binary(B)          -> <<(byte_size(B) + 1):?int32, ?JSONB_VER:8, B/binary>>;
 encode(boolarray, L) when is_list(L)        -> encode_array(bool, L);
 encode(cidrarray, L) when is_list(L)        -> encode_array(cidr, L);
@@ -105,8 +105,8 @@ decode(timestamptzarray, B)                 -> decode_array(B);
 decode(inet, B)                             -> decode_net(B);
 decode(cidr, B)                             -> decode_net(B);
 decode(uuid, B)                             -> decode_uuid(B);
-decode(json, B)                             -> mochijson2:decode(B, [{format, proplist}]);
-decode(jsonb, <<?JSONB_VER:8, B/binary>>)   -> mochijson2:decode(B, [{format, proplist}]);
+decode(json, B)                             -> mochij2:decode(B, [{format, proplist}]);
+decode(jsonb, <<?JSONB_VER:8, B/binary>>)   -> mochij2:decode(B, [{format, proplist}]);
 decode(_Other, Bin)                         -> Bin.
 
 encode_array(Type, A) ->
