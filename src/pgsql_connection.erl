@@ -2,7 +2,7 @@
 
 -module(pgsql_connection).
 
--behavior(gen_fsm).
+-behavior(gen_fsm_compat).
 
 -export([start_link/0, stop/1, connect/5, get_parameter/2]).
 -export([squery/2, equery/3]).
@@ -37,42 +37,42 @@
 %% -- client interface --
 
 start_link() ->
-    gen_fsm:start_link(?MODULE, [], []).
+    gen_fsm_compat:start_link(?MODULE, [], []).
 
 stop(C) ->
-    gen_fsm:send_all_state_event(C, stop).
+    gen_fsm_compat:send_all_state_event(C, stop).
 
 connect(C, Host, Username, Password, Opts) ->
-    gen_fsm:sync_send_event(C, {connect, Host, Username, Password, Opts}, infinity).
+    gen_fsm_compat:sync_send_event(C, {connect, Host, Username, Password, Opts}, infinity).
 
 get_parameter(C, Name) ->
-    gen_fsm:sync_send_event(C, {get_parameter, to_binary(Name)}).
+    gen_fsm_compat:sync_send_event(C, {get_parameter, to_binary(Name)}).
 
 squery(C, Sql) ->
-    gen_fsm:sync_send_event(C, {squery, Sql}, infinity).
+    gen_fsm_compat:sync_send_event(C, {squery, Sql}, infinity).
 
 equery(C, Statement, Parameters) ->
-    gen_fsm:sync_send_event(C, {equery, Statement, Parameters}, infinity).
+    gen_fsm_compat:sync_send_event(C, {equery, Statement, Parameters}, infinity).
 
 parse(C, Name, Sql, Types) ->
-    gen_fsm:sync_send_event(C, {parse, Name, Sql, Types}, infinity).
+    gen_fsm_compat:sync_send_event(C, {parse, Name, Sql, Types}, infinity).
 
 bind(C, Statement, PortalName, Parameters) ->
-    gen_fsm:sync_send_event(C, {bind, Statement, PortalName, Parameters}, infinity).
+    gen_fsm_compat:sync_send_event(C, {bind, Statement, PortalName, Parameters}, infinity).
 
 execute(C, Statement, PortalName, MaxRows) ->
-    gen_fsm:sync_send_event(C, {execute, Statement, PortalName, MaxRows}, infinity).
+    gen_fsm_compat:sync_send_event(C, {execute, Statement, PortalName, MaxRows}, infinity).
 
 describe(C, Type, Name) ->
-    gen_fsm:sync_send_event(C, {describe, Type, Name}, infinity).
+    gen_fsm_compat:sync_send_event(C, {describe, Type, Name}, infinity).
 
 close(C, Type, Name) ->
-    gen_fsm:sync_send_event(C, {close, Type, Name}, infinity).
+    gen_fsm_compat:sync_send_event(C, {close, Type, Name}, infinity).
 
 sync(C) ->
-    gen_fsm:sync_send_event(C, sync, infinity).
+    gen_fsm_compat:sync_send_event(C, sync, infinity).
 
-%% -- gen_fsm implementation --
+%% -- gen_fsm_compat implementation --
 
 init([]) ->
     process_flag(trap_exit, true),
@@ -163,7 +163,7 @@ auth({$R, <<M:?int32, _/binary>>}, State) ->
                  _ -> unknown
              end,
     Error = {error, {unsupported_auth_method, Method}},
-    gen_fsm:reply(State#state.reply_to, Error),
+    gen_fsm_compat:reply(State#state.reply_to, Error),
     {stop, normal, State};
 
 %% ErrorResponse
@@ -173,11 +173,11 @@ auth({error, E}, State) ->
               <<"28P01">> -> invalid_password;
               Any         -> Any
           end,
-    gen_fsm:reply(State#state.reply_to, {error, Why}),
+    gen_fsm_compat:reply(State#state.reply_to, {error, Why}),
     {stop, normal, State};
 
 auth(timeout, State) ->
-    gen_fsm:reply(State#state.reply_to, {error, timeout}),
+    gen_fsm_compat:reply(State#state.reply_to, {error, timeout}),
     {stop, normal, State}.
 
 %% BackendKeyData
@@ -192,11 +192,11 @@ initializing({error, E}, State) ->
               <<"28000">> -> invalid_authorization_specification;
               Any         -> Any
           end,
-    gen_fsm:reply(State#state.reply_to, {error, Why}),
+    gen_fsm_compat:reply(State#state.reply_to, {error, Why}),
     {stop, normal, State};
 
 initializing(timeout, State) ->
-    gen_fsm:reply(State#state.reply_to, {error, timeout}),
+    gen_fsm_compat:reply(State#state.reply_to, {error, timeout}),
     {stop, normal, State};
 
 %% ReadyForQuery
@@ -208,7 +208,7 @@ initializing({$Z, <<Status:8>>}, State) ->
         {value, {_, <<"on">>}}  -> put(datetime_mod, pgsql_idatetime);
         {value, {_, <<"off">>}} -> put(datetime_mod, pgsql_fdatetime)
     end,
-    gen_fsm:reply(Reply_To, {ok, self()}),
+    gen_fsm_compat:reply(Reply_To, {ok, self()}),
     {next_state, ready, State#state{txstatus = Status}}.
 
 ready(_Msg, State) ->
@@ -375,12 +375,12 @@ parsing({error, E}, State) ->
 %% ReadyForQuery
 parsing({$Z, <<Status:8>>}, State) ->
     #state{reply = Reply, reply_to = Reply_To} = State,
-    gen_fsm:reply(Reply_To, Reply),
+    gen_fsm_compat:reply(Reply_To, Reply),
     {next_state, ready, State#state{reply = undefined, txstatus = Status}}.
 
 %% BindComplete
 binding({$2, <<>>}, State) ->
-    gen_fsm:reply(State#state.reply_to, ok),
+    gen_fsm_compat:reply(State#state.reply_to, ok),
     {next_state, ready, State};
 
 binding(timeout, State) ->
@@ -399,7 +399,7 @@ binding({error, E}, State) ->
 %% ReadyForQuery
 binding({$Z, <<Status:8>>}, State) ->
     #state{reply = Reply, reply_to = Reply_To} = State,
-    gen_fsm:reply(Reply_To, Reply),
+    gen_fsm_compat:reply(Reply_To, Reply),
     {next_state, ready, State#state{reply = undefined, txstatus = Status}}.
 
 %% ParameterDescription
@@ -414,13 +414,13 @@ describing({$T, <<Count:?int16, Bin/binary>>}, State) ->
     Columns = decode_columns(Count, Bin),
     Columns2 = [C#column{format = format(C#column.type)} || C <- Columns],
     S2 = (State#state.statement)#statement{columns = Columns2},
-    gen_fsm:reply(State#state.reply_to, {ok, S2}),
+    gen_fsm_compat:reply(State#state.reply_to, {ok, S2}),
     {next_state, ready, State};
 
 %% NoData
 describing({$n, <<>>}, State) ->
     S2 = (State#state.statement)#statement{columns = []},
-    gen_fsm:reply(State#state.reply_to, {ok, S2}),
+    gen_fsm_compat:reply(State#state.reply_to, {ok, S2}),
     {next_state, ready, State};
 
 describing(timeout, State) ->
@@ -439,7 +439,7 @@ describing({error, E}, State) ->
 %% ReadyForQuery
 describing({$Z, <<Status:8>>}, State) ->
     #state{reply = Reply, reply_to = Reply_To} = State,
-    gen_fsm:reply(Reply_To, Reply),
+    gen_fsm_compat:reply(Reply_To, Reply),
     {next_state, ready, State#state{reply = undefined, txstatus = Status}}.
 
 %% DataRow
@@ -478,17 +478,17 @@ executing({error, E}, State) ->
 
 %% CloseComplete
 closing({$3, <<>>}, State) ->
-    gen_fsm:reply(State#state.reply_to, ok),
+    gen_fsm_compat:reply(State#state.reply_to, ok),
     {next_state, ready, State};
 
 closing(timeout, State) ->
-    gen_fsm:reply(State#state.reply_to, {error, timeout}),
+    gen_fsm_compat:reply(State#state.reply_to, {error, timeout}),
     {next_state, ready, State};
 
 %% ErrorResponse
 closing({error, E}, State) ->
     Error = {error, E},
-    gen_fsm:reply(State#state.reply_to, Error),
+    gen_fsm_compat:reply(State#state.reply_to, Error),
     {next_state, ready, State}.
 
 %% ErrorResponse
@@ -505,7 +505,7 @@ synchronizing(timeout, State) ->
 %% ReadyForQuery
 synchronizing({$Z, <<Status:8>>}, State) ->
     #state{reply = Reply, reply_to = Reply_To} = State,
-    gen_fsm:reply(Reply_To, Reply),
+    gen_fsm_compat:reply(Reply_To, Reply),
     {next_state, ready, State#state{reply = undefined, txstatus = Status}}.
 
 timeout({$Z, <<Status:8>>}, State) ->
