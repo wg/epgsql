@@ -1,0 +1,4 @@
+[{<<"mochij">>,
+  {git,"git://github.com/SiftLogic/mochij.git",
+       {ref,"433f181c4481f0cac7257c2c08eeb662fcf4378e"}},
+  0}].
