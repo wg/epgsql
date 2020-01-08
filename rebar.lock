@@ -1,4 +1,8 @@
-[{<<"mochij">>,
+[{<<"gen_fsm_compat">>,
+  {git,"https://github.com/SiftLogic/gen_fsm_compat.git",
+       {ref,"dc5976180c5a80d676cc50e57775c96bf0ba119a"}},
+  0},
+ {<<"mochij">>,
   {git,"https://github.com/SiftLogic/mochij.git",
-       {ref,"9af1852efd1b911b361a15ed6464ed6020b27b22"}},
+       {ref,"433f181c4481f0cac7257c2c08eeb662fcf4378e"}},
   0}].
