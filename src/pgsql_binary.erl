@@ -105,8 +105,8 @@ decode(timestamptzarray, B)                 -> decode_array(B);
 decode(inet, B)                             -> decode_net(B);
 decode(cidr, B)                             -> decode_net(B);
 decode(uuid, B)                             -> decode_uuid(B);
-decode(json, B)                             -> mochij2:decode(B, [{format, proplist}]);
-decode(jsonb, <<?JSONB_VER:8, B/binary>>)   -> mochij2:decode(B, [{format, proplist}]);
+decode(json, B)                             -> (get(json_decoder))(B);
+decode(jsonb, <<?JSONB_VER:8, B/binary>>)   -> (get(json_decoder))(B);
 decode(_Other, Bin)                         -> Bin.
 
 encode_array(Type, A) ->
