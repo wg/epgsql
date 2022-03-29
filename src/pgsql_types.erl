@@ -146,6 +146,7 @@ type2oid(int2array)             -> 1005;
 type2oid(int4array)             -> 1007;
 type2oid(textarray)             -> 1009;
 type2oid(chararray)             -> 1014;
+type2oid(bpchararray)           -> 1014;
 type2oid(varchararray)          -> 1015;
 type2oid(int8array)             -> 1016;
 type2oid(float4array)           -> 1021;
